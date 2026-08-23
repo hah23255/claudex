@@ -70,8 +70,14 @@ The expected pattern for every check lives in those skills. This file states wha
 | Versions pinned | Grep the Makefile and any HTML for `@latest` or an unpinned range |
 | Fonts present and self-hosted | Glob the fonts directory; grep HTML and CSS for `fonts.googleapis.com` and `fonts.gstatic.com` |
 | Font format | Glob the fonts directory for anything that is not woff2 |
+| Nerd Font is earned | Grep the page for a private-use-area glyph or a Powerline separator when the nerd variant is downloaded |
 | Palette declared once | Grep the HTML for the theme declaration and count how many places define the same colors |
 | Tailwind configuration form | Read the HTML for how theme values are declared and check it against the Tailwind version loaded |
+| Page ground | Read the `body` background and check it against the layering table |
+| Layer steps | Read the backgrounds of nested surfaces and check that each is one rung from its parent |
+| Text ramp | Read the default body color and the heading colors and check they are not the same token |
+| Structure is neutral | Grep border and background utilities for accent colors |
+| Utilities over CSS | Read every hand-written rule and check it against the named exceptions rather than for a utility that would do it |
 | Custom CSS placement | Glob for hand-written `.css` files outside the downloaded set |
 | Icon files | Glob the icons directory against the sizes the skill lists |
 | PWA completeness | Glob for the manifest and the worker; grep the HTML for the link, the meta tags, and the registration; check they are all present or all absent |
@@ -87,6 +93,7 @@ The expected pattern for every check lives in those skills. This file states wha
 | Mermaid theme mode | Read the `mermaid.initialize` config for its theme key |
 | Mermaid render trigger | Read the config for automatic startup and grep for a manual run call |
 | Markdown styling | Read the stylesheet for the heading colors, the inline versus block code treatment, and the table rules |
+| Colors follow the palette | Grep the Markdown stylesheet and the Mermaid config for hex literals rather than palette reads |
 
 ---
 

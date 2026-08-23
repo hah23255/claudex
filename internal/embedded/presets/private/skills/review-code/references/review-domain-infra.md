@@ -35,7 +35,11 @@ The expected pattern for every check lives in those skills. This file states wha
 | Assets downloaded, not committed | Read the asset target; run `git ls-files` over the directories it writes; read `.gitignore` |
 | Every claimed asset is downloaded | Cross-reference what the frontend loads against what the asset target fetches |
 | Versions pinned | Grep the Makefile for `latest` and for unpinned ranges in download URLs |
-| Fonts | Read the font targets for the three fonts, their sources, and the format they end up in |
+| Fonts | Read the font targets for the three families, their sources, and the format they end up in |
+| Font subsetting | Read the Google Fonts target for the filter that keeps only the latin blocks |
+| Nerd Font is opt-in | Read whether the nerd target is wired into the default asset run, and whether the page renders glyphs that justify it |
+| Asset run is idempotent | Read the asset target for a stamp or another guard against re-downloading on every build |
+| Asset run is quiet | Read the recipes for a tool that writes progress to stdout or stderr without a redirect |
 | Version calculation defined once | Read the version target; grep the workflow for a reimplementation of the same logic |
 | Version injection path | Read the build target's linker flags against where the version variable is declared |
 | Docker targets | Read the target list against what the project type calls for |
@@ -57,6 +61,7 @@ The expected pattern for every check lives in those skills. This file states wha
 | Action versions | Read every `uses:` line and check each tag against that action's own releases rather than against memory |
 | Asset step present where needed | Read the build and test jobs for the asset target, and compare against whether the project embeds a frontend |
 | Matrix | Read the matrix against the platforms the skill names |
+| Image platforms | Read the container job for QEMU and buildx setup and for the platform list it publishes |
 
 ## Category 3: Container
 
@@ -68,6 +73,8 @@ The expected pattern for every check lives in those skills. This file states wha
 | Base image choice | Read the final `FROM` and trace whether anything copied into it is linked against glibc |
 | Runtime packaging | Read how the runtime reaches the final stage |
 | Non-root user | Read for user and group creation, the `USER` instruction, and where it sits relative to the last privileged `RUN` |
+| Multi-arch build | Read the builder `FROM` for `--platform=$BUILDPLATFORM` and the build command for `TARGETARCH`, and check the publishing step names more than one platform |
+| Version injection | Read for a `VERSION` build argument reaching the artifact's version variable |
 | Fixed UID and GID | Read the user creation for literal numeric IDs |
 | Ownership of copies and volumes | Read the `COPY` instructions and any volume directory creation |
 | Entrypoint and command split | Read the `ENTRYPOINT` and `CMD` lines |
