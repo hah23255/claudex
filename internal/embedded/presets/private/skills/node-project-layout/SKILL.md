@@ -31,7 +31,7 @@ project-root/
 ├── .node-version         # pinned Node version
 ├── bin/                  # thin launcher, e.g. app.js
 ├── src/                  # backend: server, routing, auth, state
-├── public/               # frontend: index.html, css/, js/, fonts/
+├── public/               # frontend: index.html, css/, js/, fonts/, vendor/
 ├── test/                 # node:test suites, plus an optional e2e script
 ├── config.example.json
 ├── Makefile              # vendor assets, build, assemble the artifact
@@ -65,11 +65,17 @@ Config ships as `config.example.json` and a user's `config.json` is merged over 
   },
   "dependencies": {
     "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/browser": "4.3.3",
+    "lucide": "1.33.0"
   }
 }
 ```
 
 Every script runs real Node with no transpiler and no bundler, so what runs in development is what runs in production.
+
+Tailwind and Lucide are development dependencies because nothing in `src/` imports them. `make vendor` copies their built files into `public/vendor/`, and the running process only ever serves those copies as static bytes.
 
 `.node-version` pins the version for `fnm`, `nvm`, CI, and anything else that reads it:
 

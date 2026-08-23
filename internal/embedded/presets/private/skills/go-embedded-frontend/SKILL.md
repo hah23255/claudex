@@ -1,6 +1,6 @@
 ---
 name: go-embedded-frontend
-description: A single-page frontend embedded into a Go binary from internal/server/static/ - HTML boilerplate, Tailwind v4 browser build, the Catppuccin Mocha palette, self-hosted fonts, icons, and PWA files. Use when building or changing the web UI of a Go Web Only or CLI + Web project, laying out static assets, theming a page, or adding PWA support. Triggers on internal/server/static/, index.html, tailwind, Catppuccin, favicon, manifest.json, sw.js, Lucide, and Font Awesome. Not for templ or htmx server-rendered HTML, and not for a framework SPA built outside the repository.
+description: A single-page frontend embedded into a Go binary from internal/server/static/ - HTML boilerplate, Tailwind v4 browser build, the Catppuccin Mocha palette, self-hosted fonts, icons, and PWA files. Use when building or changing the web UI of a Go Web Only or CLI + Web project, laying out static assets, theming a page, choosing which surface a panel or control sits on, or adding PWA support. Triggers on internal/server/static/, index.html, tailwind, @theme, Catppuccin, crust, favicon, manifest.json, sw.js, Lucide, and Font Awesome. Not for templ or htmx server-rendered HTML, and not for a framework SPA built outside the repository.
 user-invocable: false
 ---
 
@@ -21,7 +21,7 @@ internal/server/static/
 ├── css/
 │   ├── inter.css               # @font-face for Inter
 │   ├── google-sans.css         # @font-face for Google Sans
-│   ├── jetbrains-mono.css      # @font-face for JetBrains Mono Nerd Font Mono
+│   ├── jetbrains-mono.css      # @font-face for JetBrains Mono
 │   ├── github-dark.min.css     # highlight.js theme, when rendering markdown
 │   └── devicon.min.css         # when using tech logos
 ├── fonts/              # woff2 only
@@ -47,20 +47,23 @@ Every asset is pinned to an exact version. A floating `@latest` makes two builds
 | Asset | Version | Lands at |
 |---|---|---|
 | Tailwind browser build | `@tailwindcss/browser@4.3.3` | `js/tailwind.js` |
-| Lucide | `lucide@1.31.0` | `js/lucide.min.js` |
+| Lucide | `lucide@1.33.0` | `js/lucide.min.js` |
 | Font Awesome | `@fortawesome/fontawesome-free@7.3.1` | `fontawesome/css/`, `fontawesome/webfonts/` |
 | Dev Icons | `devicon@2.17.0` | `css/devicon.min.css` |
 | Inter | Google Fonts | `css/inter.css`, `fonts/*.woff2` |
 | Google Sans | Google Fonts | `css/google-sans.css`, `fonts/*.woff2` |
-| JetBrains Mono Nerd Font Mono | nerd-fonts `v3.5.0` | `css/jetbrains-mono.css`, `fonts/*.woff2` |
-| Marked | `marked@18.0.9` | `js/marked.min.js` |
+| JetBrains Mono | Google Fonts | `css/jetbrains-mono.css`, `fonts/*.woff2` |
+| JetBrains Mono Nerd Font Mono | nerd-fonts `v3.5.0`, opt-in | `css/jetbrains-mono.css`, `fonts/*.woff2` |
+| Marked | `marked@18.0.10` | `js/marked.umd.js` |
 | Highlight.js | `highlight.js@11.12.0` | `js/highlight.min.js`, `css/github-dark.min.css` |
-| Mermaid | `mermaid@11.16.1` | `js/mermaid.min.js` |
+| Mermaid | `mermaid@11.17.0` | `js/mermaid.min.js` |
 | Chart.js | `chart.js@4.5.1` | `js/chart.umd.js` |
 
 The three fonts are always downloaded, whether or not a given page uses all three, so the asset step is the same everywhere and a later design change needs no build change. Everything below them in the table is downloaded when the project actually uses it.
 
-Web fonts are woff2, never ttf. woff2 is roughly half the bytes of the same ttf and every browser targeted here supports it. Inter and Google Sans come from Google Fonts, which already serves woff2. JetBrains Mono Nerd Font Mono is a patched Nerd Font that Google Fonts does not carry, so it is downloaded from the nerd-fonts release as ttf and compressed to woff2 during the asset step.
+Web fonts are woff2, never ttf. woff2 is roughly half the bytes of the same ttf and every browser targeted here supports it. All three families come from Google Fonts, which already serves woff2, so nothing is converted.
+
+Only the `latin` and `latin-ext` blocks of each Google Fonts stylesheet are kept. The endpoint declares every subset the family has, which for Google Sans is twenty-five files covering scripts the page never renders, and `//go:embed` compiles all of them into the binary regardless.
 
 Font Awesome's stylesheet references its webfonts by a relative path that does not survive being served from `/static/`, so the asset step rewrites it:
 
@@ -74,9 +77,13 @@ sed -i '' 's|../webfonts/|/static/fontawesome/webfonts/|g' fontawesome/css/all.m
 |---|---|---|
 | Inter | body and UI text | `'Inter'` |
 | Google Sans | display headings and branding | `'Google Sans'` |
-| JetBrains Mono Nerd Font Mono | code, monospace, and glyphs | `'JetBrains Mono'` |
+| JetBrains Mono | code and monospace | `'JetBrains Mono'` |
 
 Each has its own `@font-face` stylesheet under `css/`, linked from `<head>`, pointing at local woff2 files. Nothing loads from `fonts.googleapis.com` at run time, because a page that fetches a font from a third party leaks every visitor's IP and stops rendering correctly offline.
+
+The mono slot takes the plain family by default. The Nerd Font variant is a patched build Google Fonts does not carry, so it is downloaded from the nerd-fonts release as ttf and compressed to woff2, which costs two megabytes and roughly ten seconds against sixty kilobytes and half a second. A page earns that only by actually rendering Nerd Font glyphs, which means a Powerline separator, a file-type icon from the private use area, or terminal output that carries them. An icon that Lucide or Font Awesome already has is not a reason.
+
+Switching is a Makefile variable, not a page change. The nerd target writes the same `css/jetbrains-mono.css` under the same `JetBrains Mono` family name, so the HTML is identical either way.
 
 ## The Page
 
@@ -93,7 +100,7 @@ Each has its own `@font-face` stylesheet under `css/`, linked from `<head>`, poi
     <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png">
 
     <link rel="manifest" href="/static/manifest.json">
-    <meta name="theme-color" content="#1e1e2e">
+    <meta name="theme-color" content="#11111b">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="APP_NAME">
@@ -105,17 +112,35 @@ Each has its own `@font-face` stylesheet under `css/`, linked from `<head>`, poi
 
     <script src="/static/js/lucide.min.js"></script>
     <script src="/static/js/tailwind.js"></script>
+    <style>
+      /* Catppuccin Mocha */
+      :root {
+        --ctp-rosewater: #f5e0dc; --ctp-flamingo: #f2cdcd; --ctp-pink: #f5c2e7;
+        --ctp-mauve: #cba6f7;     --ctp-red: #f38ba8;      --ctp-maroon: #eba0ac;
+        --ctp-peach: #fab387;     --ctp-yellow: #f9e2af;   --ctp-green: #a6e3a1;
+        --ctp-teal: #94e2d5;      --ctp-sky: #89dceb;      --ctp-sapphire: #74c7ec;
+        --ctp-blue: #89b4fa;      --ctp-lavender: #b4befe; --ctp-text: #cdd6f4;
+        --ctp-subtext1: #bac2de;  --ctp-subtext0: #a6adc8; --ctp-overlay2: #9399b2;
+        --ctp-overlay1: #7f849c;  --ctp-overlay0: #6c7086; --ctp-surface2: #585b70;
+        --ctp-surface1: #45475a;  --ctp-surface0: #313244; --ctp-base: #1e1e2e;
+        --ctp-mantle: #181825;    --ctp-crust: #11111b;
+      }
+    </style>
     <style type="text/tailwindcss">
       @theme {
-        --color-rosewater: #f5e0dc; --color-flamingo: #f2cdcd; --color-pink: #f5c2e7;
-        --color-mauve: #cba6f7;     --color-red: #f38ba8;      --color-maroon: #eba0ac;
-        --color-peach: #fab387;     --color-yellow: #f9e2af;   --color-green: #a6e3a1;
-        --color-teal: #94e2d5;      --color-sky: #89dceb;      --color-sapphire: #74c7ec;
-        --color-blue: #89b4fa;      --color-lavender: #b4befe; --color-text: #cdd6f4;
-        --color-subtext1: #bac2de;  --color-subtext0: #a6adc8; --color-overlay2: #9399b2;
-        --color-overlay1: #7f849c;  --color-overlay0: #6c7086; --color-surface2: #585b70;
-        --color-surface1: #45475a;  --color-surface0: #313244; --color-base: #1e1e2e;
-        --color-mantle: #181825;    --color-crust: #11111b;
+        --color-rosewater: var(--ctp-rosewater); --color-flamingo: var(--ctp-flamingo);
+        --color-pink: var(--ctp-pink);           --color-mauve: var(--ctp-mauve);
+        --color-red: var(--ctp-red);             --color-maroon: var(--ctp-maroon);
+        --color-peach: var(--ctp-peach);         --color-yellow: var(--ctp-yellow);
+        --color-green: var(--ctp-green);         --color-teal: var(--ctp-teal);
+        --color-sky: var(--ctp-sky);             --color-sapphire: var(--ctp-sapphire);
+        --color-blue: var(--ctp-blue);           --color-lavender: var(--ctp-lavender);
+        --color-text: var(--ctp-text);           --color-subtext1: var(--ctp-subtext1);
+        --color-subtext0: var(--ctp-subtext0);   --color-overlay2: var(--ctp-overlay2);
+        --color-overlay1: var(--ctp-overlay1);   --color-overlay0: var(--ctp-overlay0);
+        --color-surface2: var(--ctp-surface2);   --color-surface1: var(--ctp-surface1);
+        --color-surface0: var(--ctp-surface0);   --color-base: var(--ctp-base);
+        --color-mantle: var(--ctp-mantle);       --color-crust: var(--ctp-crust);
 
         --font-sans: 'Inter', sans-serif;
         --font-display: 'Google Sans', sans-serif;
@@ -123,18 +148,21 @@ Each has its own `@font-face` stylesheet under `css/`, linked from `<head>`, poi
       }
     </style>
 </head>
-<body class="bg-base text-text min-h-screen font-sans">
-    <nav class="bg-mantle border-b border-surface0 px-4 py-3">
+<body class="bg-crust text-subtext0 min-h-screen font-sans">
+    <nav class="bg-crust border-b border-surface0 px-4 py-3">
         <div class="max-w-6xl mx-auto flex items-center justify-between">
             <div class="flex items-center gap-2">
                 <img src="/static/icons/logo.png" alt="Logo" class="w-8 h-8">
-                <span class="text-lg font-semibold font-display">APP_NAME</span>
+                <span class="text-lg font-semibold font-display text-text">APP_NAME</span>
             </div>
         </div>
     </nav>
 
     <main class="max-w-6xl mx-auto px-4 py-8">
-        <h1 class="text-2xl font-bold mb-6 font-display">Page Title</h1>
+        <h1 class="text-2xl font-bold mb-6 font-display text-text">Page Title</h1>
+        <div class="bg-mantle border border-surface0 rounded-xl p-6">
+            <input class="w-full bg-surface0 border border-surface1 rounded-lg px-3 py-2 text-text">
+        </div>
     </main>
 
     <script src="/static/app.js"></script>
@@ -152,32 +180,67 @@ Theme values are declared in a `<style type="text/tailwindcss">` block containin
 
 A `--color-mauve` entry generates `bg-mauve`, `text-mauve`, `border-mauve`, and a real `var(--color-mauve)` for hand-written CSS. Naming the palette entries after Catppuccin's own names keeps the class you write and the swatch you picked identical.
 
+`@theme` maps each name onto a `--ctp-*` variable rather than a literal hex. The utility resolves the variable at paint time, so redefining the `--ctp-*` set under a selector re-themes the page without a second `@theme` and without touching a single class. Opacity modifiers survive it, since v4 emits `color-mix(in oklab, var(--color-mauve) 50%, transparent)` rather than substituting a value.
+
 `@import "tailwindcss";` is omitted, because the browser build injects it when no `@import` appears anywhere in the block. Writing one takes over the whole import graph and drops the base styles unless you add it back yourself.
+
+## Layering
+
+The page is grounded on `crust`, the darkest step, and every surface is raised from there. Grounding on `base` instead pushes the whole page one rung up the ramp, leaves the chrome darker than the page it sits on, and costs contrast against every text color.
+
+| Role | Token |
+|---|---|
+| Page ground, and any chrome flush with it such as a sidebar, header, or rail | `crust` |
+| A surface that reads as lifted off the page, such as a card, modal, popover, or dropdown | `mantle` |
+| A control sitting on either of those, such as an input, chip, button, or hovered row | `surface0` |
+| Borders, dividers, and the hover state of a `surface0` control | `surface1` |
+| A well recessed inside a `mantle` panel, such as a code block or an embedded preview | `base` |
+
+Adjacent layers step one rung and no more. `crust` to `mantle` is a contrast ratio of 1.07 and `crust` to `surface0` is 1.49, which separates them without drawing a seam. Skipping a rung reads as two unrelated panels rather than one raised off the other.
+
+Text runs the same way. Body copy takes `subtext0`, headings and the one value a row exists to show take `text`, and metadata takes `overlay1`. Defaulting body copy to `text` makes every word shout and leaves nothing louder for a heading to be.
+
+Structure never borrows from the accent ramp. Borders, dividers, and backgrounds come from the neutral steps, and an accent marks one thing per view: the active item, the primary action, or a state. Two accents competing in one view means neither is signal.
+
+Nothing here names a component. The tokens are assigned by what a surface does, so a layout this skill has never seen still lands on the right step.
 
 ## Theme
 
 Catppuccin Mocha is the default for a new frontend in this style. A project that already has a palette keeps it rather than being re-themed, since re-theming an existing app is a design decision rather than a convention.
 
-Light and dark switching is added only when it is asked for. Tailwind v4 drives it with a custom variant rather than a config key:
+Light and dark switching is added only when it is asked for. The `--ctp-*` indirection is what makes it cheap: redefine that set for Latte and every utility follows.
 
 ```html
-<style type="text/tailwindcss">
-  @custom-variant dark (&:where(.dark, .dark *));
-  @theme {
-    /* Catppuccin Latte, the light default */
-    --color-base: #eff1f5; --color-mantle: #e6e9ef; --color-crust: #dce0e8;
-    --color-text: #4c4f69; --color-blue: #1e66f5;  --color-mauve: #8839ef;
+<style>
+  /* Catppuccin Latte, re-slotted so crust stays the page ground */
+  :root:not(.dark) {
+    --ctp-crust: #eff1f5; --ctp-mantle: #e6e9ef; --ctp-base: #dce0e8;
+    --ctp-surface0: #ccd0da; --ctp-surface1: #bcc0cc; --ctp-surface2: #acb0be;
+    --ctp-text: #4c4f69; --ctp-subtext0: #5c5f77; --ctp-overlay1: #6c6f85;
+    --ctp-blue: #1e66f5; --ctp-mauve: #8839ef;
   }
 </style>
 ```
 
-The Mocha values are then applied under `html.dark`, and a script in `<head>` sets that class from `localStorage` or `prefers-color-scheme` before the body renders. Running it in `<head>` rather than at the end of the document is what prevents a flash of the wrong theme.
+Latte's ramp runs light to dark, the opposite of Mocha's, so re-slotting is what keeps `crust` the ground and `mantle` the surface above it in both. The text tokens shift by the same one step, because Latte's own `subtext0` on its own `base` is 4.37 and body copy has to clear 4.5.
+
+A script in `<head>` sets the class from `localStorage` or `prefers-color-scheme` before the body renders, which is what prevents a flash of the wrong theme.
 
 ## Styling Rules
 
-Custom CSS lives in inline `<style>` blocks. Downloaded stylesheets live in `css/`. Keeping the two apart means the asset step can wipe and re-download `css/` without touching anything a person wrote.
+Styling is Tailwind utility classes on the element. Hand-written CSS is the exception and earns its place only in a case that has no utility form:
 
-Tailwind utility classes are preferred over hand-written layout CSS for a new frontend in this style. An existing project's working CSS is not ripped out to impose them.
+- `@font-face` declarations, which live in the downloaded stylesheets under `css/`
+- scrollbar pseudo-elements, `::selection`, and other pseudo-elements Tailwind does not reach
+- a subtree a third party generates, where the classes are not yours to write, such as rendered Markdown, a Mermaid diagram, or an editor widget
+- `@media print` rules
+- `@keyframes`
+
+Everything else is a class. A hand-written rule that duplicates a utility is a second place a color or a spacing value can drift, and it is invisible to anyone reading the element.
+
+The custom CSS that remains lives in inline `<style>` blocks. Downloaded stylesheets live in `css/`. Keeping the two apart means the asset step can wipe and re-download `css/` without touching anything a person wrote.
+
+An existing project's working CSS is not ripped out to impose this. The rule governs what you write, not what is already there.
 
 The browser build compiles utility classes in the page at run time. Tailwind documents it as development-only. It is fine for an embedded tool or a dashboard, and an app that needs a small payload and no runtime compile moves to a build step emitting a static `tailwind.css`.
 
@@ -217,8 +280,8 @@ Add PWA support when the app is used often on a phone, when offline behavior is 
   "description": "APP_DESCRIPTION",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1e1e2e",
-  "theme_color": "#1e1e2e",
+  "background_color": "#11111b",
+  "theme_color": "#11111b",
   "icons": [
     { "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }

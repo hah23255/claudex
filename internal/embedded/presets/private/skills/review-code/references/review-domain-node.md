@@ -96,10 +96,15 @@ The expected pattern for every check lives in those skills. This file states wha
 | Framework-free | Read `public/js/` and grep `package.json` for frontend frameworks |
 | Assets not committed | Run `git ls-files` over the vendored directories and read `.gitignore` |
 | Nothing fetched at run time | Grep `public/` HTML and CSS for external origins |
-| Fonts present | Glob the fonts directory against the three the skill names |
+| Fonts present | Glob the fonts directory against the three families the skill names |
 | Font format | Glob the fonts directory for anything that is not woff2 |
 | Font wiring | Read the `@font-face` stylesheets and the HTML head links |
+| Nerd Font is earned | Grep the page for a private-use-area glyph or a Powerline separator when the nerd variant is vendored |
 | Palette declared once | Grep the CSS for hardcoded hex values in component styles alongside the variable declarations |
+| Page ground | Read the `body` classes and check the background against the layering table |
+| Layer steps | Read the backgrounds of nested surfaces and check that each is one rung from its parent |
+| Text ramp | Read the default body color and the heading colors and check they are not the same token |
+| Utilities over CSS | Read every hand-written rule and check it against the named exceptions rather than for a utility that would do it |
 | WebSocket client | Read the client module for reconnect backoff, its dispatch, its send queue, and how it distinguishes a deliberate close |
 
 ## Category 7: Tests

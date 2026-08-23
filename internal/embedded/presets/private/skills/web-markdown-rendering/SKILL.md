@@ -8,10 +8,10 @@ user-invocable: false
 
 **Marked parses, Highlight.js colors the code, Lucide draws the callout icons, and one CSS block styles everything in Catppuccin Mocha.**
 
-The libraries are vendored and pinned, never loaded from a CDN at run time: `marked@18.0.9`, `highlight.js@11.12.0` with its `github-dark` theme.
+The libraries are vendored and pinned, never loaded from a CDN at run time: `marked@18.0.10`, `highlight.js@11.12.0` with its `github-dark` theme.
 
 ```html
-<script src="/static/js/marked.min.js"></script>
+<script src="/static/js/marked.umd.js"></script>
 <script src="/static/js/highlight.min.js"></script>
 <link rel="stylesheet" href="/static/css/github-dark.min.css">
 ```
@@ -152,11 +152,17 @@ The `textarea` fallback covers pages served over plain HTTP, where `navigator.cl
 
 ## Styles
 
+Marked generates this subtree, so its classes are not yours to write and Tailwind utilities cannot reach it. Hand-written CSS is the correct tool here and is one of the named exceptions to the utility-first rule.
+
+Every color reads a `--ctp-*` variable from the page palette rather than a literal. A hardcoded hex here is a color that stops following the theme the moment the page gains a light mode, and it is the one place a stale value survives a palette change unnoticed.
+
+The rendered body sits inside a `mantle` panel, so a fenced block takes `base`, the well one rung further in.
+
 ```css
 .markdown-body {
     background-color: transparent !important;
     font-family: 'Inter', sans-serif !important;
-    color: #a6adc8 !important;
+    color: var(--ctp-subtext0) !important;
     line-height: 1.6;
     font-size: 16px;
 }
@@ -174,19 +180,19 @@ Each level takes a distinct Catppuccin color so the outline is readable at a gla
     line-height: 1.25;
     padding-bottom: 0.3em;
 }
-.markdown-body h1 { font-size: 2em;     color: #b4befe !important; border-bottom: 1px solid #313244; }
-.markdown-body h2 { font-size: 1.5em;   color: #cba6f7 !important; border-bottom: 1px solid rgba(49, 50, 68, 0.5); }
-.markdown-body h3 { font-size: 1.25em;  color: #89b4fa !important; }
-.markdown-body h4 { font-size: 1em;     color: #cdd6f4; font-weight: 600; }
-.markdown-body h5 { font-size: 0.875em; color: #cdd6f4; font-weight: 600; }
-.markdown-body h6 { font-size: 0.85em;  color: #a6adc8; }
+.markdown-body h1 { font-size: 2em;     color: var(--ctp-lavender) !important; border-bottom: 1px solid var(--ctp-surface0); }
+.markdown-body h2 { font-size: 1.5em;   color: var(--ctp-mauve) !important; border-bottom: 1px solid color-mix(in oklab, var(--ctp-surface0) 50%, transparent); }
+.markdown-body h3 { font-size: 1.25em;  color: var(--ctp-blue) !important; }
+.markdown-body h4 { font-size: 1em;     color: var(--ctp-text); font-weight: 600; }
+.markdown-body h5 { font-size: 0.875em; color: var(--ctp-text); font-weight: 600; }
+.markdown-body h6 { font-size: 0.85em;  color: var(--ctp-subtext0); }
 ```
 
 ### Text, links, and lists
 
 ```css
 .markdown-body p { margin-bottom: 16px; }
-.markdown-body a { color: #89b4fa; text-decoration: none; }
+.markdown-body a { color: var(--ctp-blue); text-decoration: none; }
 .markdown-body a:hover { text-decoration: underline; }
 
 .markdown-body ul, .markdown-body ol { padding-left: 2em; margin-bottom: 16px; }
@@ -197,20 +203,20 @@ Each level takes a distinct Catppuccin color so the outline is readable at a gla
 
 ### Code
 
-Inline code is peach on surface0, and a fenced block is plain text on mantle. The two need different treatments because inline code has to stand out inside a sentence while a block already stands out by being a block.
+Inline code is peach on surface0, and a fenced block is plain text on base. The two need different treatments because inline code has to stand out inside a sentence while a block already stands out by being a block.
 
 ```css
 .markdown-body code {
     font-family: 'JetBrains Mono', monospace;
-    color: #fab387 !important;
-    background-color: #313244 !important;
+    color: var(--ctp-peach) !important;
+    background-color: var(--ctp-surface0) !important;
     border-radius: 4px;
     padding: 0.2em 0.4em;
     font-size: 0.9375em;
 }
 .markdown-body pre {
     position: relative;
-    background-color: #181825 !important;
+    background-color: var(--ctp-base) !important;
     border-radius: 0.75rem;
     padding: 1rem !important;
     margin-bottom: 16px;
@@ -234,28 +240,28 @@ Inline code is peach on surface0, and a fenced block is plain text on mantle. Th
     width: 100% !important;
     border-collapse: separate;
     border-spacing: 0;
-    border: 1px solid rgba(69, 71, 90, 0.5);
+    border: 1px solid color-mix(in oklab, var(--ctp-surface1) 50%, transparent);
     border-radius: 8px;
     overflow: hidden;
     margin-bottom: 1.5rem;
 }
-.markdown-body table thead { background-color: rgba(203, 166, 247, 0.1); }
+.markdown-body table thead { background-color: color-mix(in oklab, var(--ctp-mauve) 10%, transparent); }
 .markdown-body table tr { background-color: transparent !important; border: none !important; }
-.markdown-body table tr:nth-child(2n) { background-color: rgba(49, 50, 68, 0.3) !important; }
+.markdown-body table tr:nth-child(2n) { background-color: color-mix(in oklab, var(--ctp-surface0) 30%, transparent) !important; }
 .markdown-body table th {
-    color: #cba6f7 !important;
+    color: var(--ctp-mauve) !important;
     font-weight: 600;
     border: none !important;
-    border-bottom: 1px solid rgba(69, 71, 90, 0.5) !important;
-    border-right: 1px solid rgba(49, 50, 68, 0.5);
+    border-bottom: 1px solid color-mix(in oklab, var(--ctp-surface1) 50%, transparent) !important;
+    border-right: 1px solid color-mix(in oklab, var(--ctp-surface0) 50%, transparent);
     padding: 12px 16px !important;
     text-align: left;
 }
 .markdown-body table td {
     border: none !important;
-    border-bottom: 1px solid rgba(49, 50, 68, 0.3) !important;
-    border-right: 1px solid rgba(49, 50, 68, 0.3);
-    color: #a6adc8 !important;
+    border-bottom: 1px solid color-mix(in oklab, var(--ctp-surface0) 30%, transparent) !important;
+    border-right: 1px solid color-mix(in oklab, var(--ctp-surface0) 30%, transparent);
+    color: var(--ctp-subtext0) !important;
     padding: 12px 16px !important;
     text-align: left;
 }
@@ -269,21 +275,21 @@ Inline code is peach on surface0, and a fenced block is plain text on mantle. Th
 
 ```css
 .markdown-body blockquote {
-    border-left: 0.25em solid rgba(69, 71, 90, 0.5);
+    border-left: 0.25em solid color-mix(in oklab, var(--ctp-surface1) 50%, transparent);
     padding: 0 1em;
-    color: #a6adc8;
+    color: var(--ctp-subtext0);
     margin-bottom: 16px;
 }
-.markdown-body hr { border: none; border-top: 1px solid #313244; margin: 1.5em 0; }
+.markdown-body hr { border: none; border-top: 1px solid var(--ctp-surface0); margin: 1.5em 0; }
 
 .copy-code-btn {
     position: absolute;
     top: 0.5rem;
     right: 0.5rem;
     padding: 0.5rem;
-    background-color: rgba(49, 50, 68, 0.95);
+    background-color: color-mix(in oklab, var(--ctp-surface0) 95%, transparent);
     border-radius: 0.375rem;
-    color: #a6adc8;
+    color: var(--ctp-subtext0);
     cursor: pointer;
     opacity: 0;
     transition: all 0.2s ease;
@@ -293,8 +299,8 @@ Inline code is peach on surface0, and a fenced block is plain text on mantle. Th
     z-index: 10;
 }
 pre:hover .copy-code-btn { opacity: 1; }
-.copy-code-btn:hover { background-color: rgba(69, 71, 90, 1); color: #cba6f7; }
-.copy-code-btn.copied { color: #a6e3a1; }
+.copy-code-btn:hover { background-color: var(--ctp-surface1); color: var(--ctp-mauve); }
+.copy-code-btn.copied { color: var(--ctp-green); }
 ```
 
 ### Callouts
@@ -307,7 +313,7 @@ pre:hover .copy-code-btn { opacity: 1; }
     display: flex;
     gap: 0.75rem;
     align-items: flex-start;
-    background-color: rgba(49, 50, 68, 0.2);
+    background-color: color-mix(in oklab, var(--ctp-surface0) 20%, transparent);
 }
 .callout-icon {
     display: inline-flex;
@@ -320,16 +326,16 @@ pre:hover .copy-code-btn { opacity: 1; }
 .callout-content { flex: 1; }
 .callout-content p { margin: 0 !important; }
 
-.callout.tip     { background-color: rgba(166, 227, 161, 0.1); }
-.callout.tip     .callout-icon { color: #a6e3a1; }
-.callout.info    { background-color: rgba(137, 180, 250, 0.1); }
-.callout.info    .callout-icon { color: #89b4fa; }
-.callout.danger  { background-color: rgba(243, 139, 168, 0.1); }
-.callout.danger  .callout-icon { color: #f38ba8; }
-.callout.warning { background-color: rgba(250, 179, 135, 0.1); }
-.callout.warning .callout-icon { color: #fab387; }
-.callout.note    { background-color: rgba(203, 166, 247, 0.1); }
-.callout.note    .callout-icon { color: #cba6f7; }
+.callout.tip     { background-color: color-mix(in oklab, var(--ctp-green) 10%, transparent); }
+.callout.tip     .callout-icon { color: var(--ctp-green); }
+.callout.info    { background-color: color-mix(in oklab, var(--ctp-blue) 10%, transparent); }
+.callout.info    .callout-icon { color: var(--ctp-blue); }
+.callout.danger  { background-color: color-mix(in oklab, var(--ctp-red) 10%, transparent); }
+.callout.danger  .callout-icon { color: var(--ctp-red); }
+.callout.warning { background-color: color-mix(in oklab, var(--ctp-peach) 10%, transparent); }
+.callout.warning .callout-icon { color: var(--ctp-peach); }
+.callout.note    { background-color: color-mix(in oklab, var(--ctp-mauve) 10%, transparent); }
+.callout.note    .callout-icon { color: var(--ctp-mauve); }
 ```
 
 Each type tints its background at 10% opacity and saturates only the icon, so a page of callouts stays readable instead of turning into five blocks of solid color.
@@ -338,7 +344,7 @@ Each type tints its background at 10% opacity and saturates only the icon, so a 
 
 ```css
 ::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: #11111b; }
-::-webkit-scrollbar-thumb { background: #313244; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #45475a; }
+::-webkit-scrollbar-track { background: var(--ctp-crust); }
+::-webkit-scrollbar-thumb { background: var(--ctp-surface0); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ctp-surface1); }
 ```

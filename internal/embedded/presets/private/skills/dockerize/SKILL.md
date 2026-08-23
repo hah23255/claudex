@@ -1,12 +1,12 @@
 ---
 name: dockerize
-description: Containerizing any project - multi-stage builds, choosing a base image, packaging the runtime, clearing package-manager caches, and running as a non-root user. Use when writing or changing a Dockerfile, picking a base image, deciding between alpine and debian-slim, adding a docker-compose file, or when a container runs as root. Triggers on Dockerfile, docker-compose.yaml, FROM, multi-stage builds, apk add, apt-get install, USER, adduser, groupadd, ENTRYPOINT, EXPOSE, musl, and glibc.
+description: Containerizing any project - multi-stage builds, choosing a base image, packaging the runtime, clearing package-manager caches, and running as a non-root user. Use when writing or changing a Dockerfile, picking a base image, deciding between alpine and debian-slim, building an image for more than one architecture, adding a docker-compose file, or when a container runs as root. Triggers on Dockerfile, docker-compose.yaml, FROM, multi-stage builds, buildx, BUILDPLATFORM, TARGETARCH, apk add, apt-get install, USER, adduser, groupadd, ENTRYPOINT, EXPOSE, musl, and glibc.
 user-invocable: false
 ---
 
 # Dockerize
 
-**Two stages, a runtime packaged rather than assumed where the language allows it, caches cleared inside the layer that made them, and a fixed non-root user.**
+**Two stages, one image per architecture from one file, a runtime packaged rather than assumed where the language allows it, caches cleared inside the layer that made them, and a fixed non-root user.**
 
 This applies to any language. What changes between them is the builder image and how the runtime gets into the final stage.
 
@@ -73,7 +73,7 @@ Alpine remains viable for those cases only with a deliberate musl matrix: a musl
 ## Go Template
 
 ```dockerfile
-FROM golang:1.26.6-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.7-alpine AS builder
 
 WORKDIR /app
 
@@ -84,10 +84,14 @@ RUN go mod download
 
 COPY . .
 
+ARG TARGETOS TARGETARCH VERSION=dev-build
+
 # make assets populates the tree that //go:embed static needs; drop it when the
 # project has no embedded frontend.
 RUN make assets && \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/[APP_NAME] .
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
+      -ldflags="-s -w -X 'github.com/[GITHUB_USER]/[APP_NAME]/cmd.AppVersion=${VERSION}'" \
+      -o /app/[APP_NAME] .
 
 FROM alpine:3.24.1
 
@@ -107,6 +111,10 @@ ENTRYPOINT ["./[APP_NAME]"]
 CMD ["serve", "-d", "/data", "-H", "0.0.0.0"]
 ```
 
+`--platform=$BUILDPLATFORM` pins the builder to the machine running the build, and `GOARCH=$TARGETARCH` cross-compiles from there. Without it every non-native architecture runs the whole builder under QEMU, so `make assets` and the compile execute emulated, which is the slowest part of a multi-arch build and the part Go does not need.
+
+`VERSION` arrives as a build argument and lands in the same `-ldflags` the Makefile uses, so an image reports the version the release cut rather than `dev-build`.
+
 `ca-certificates` is what lets the binary make an outbound HTTPS request; without it every TLS handshake fails verification. `tzdata` is what `time.LoadLocation` reads.
 
 `--chown` on the `COPY` sets ownership as the layer is written, rather than adding a second layer that duplicates every copied file with new metadata.
@@ -124,9 +132,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Vendor the runtime so the final stage depends on no installed node.
+# Vendor the runtime so the final stage depends on no installed node. Node names
+# amd64 "x64", so TARGETARCH is translated rather than interpolated directly.
 ARG NODE_VERSION=24.19.0
-RUN curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
+ARG TARGETARCH
+RUN NODE_ARCH="$(test "$TARGETARCH" = amd64 && echo x64 || echo "$TARGETARCH")" \
+    && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" \
       -o /tmp/node.tar.xz \
     && mkdir -p /app/runtime \
     && tar -xJf /tmp/node.tar.xz -C /app/runtime --strip-components=1 \
@@ -159,6 +170,8 @@ ENTRYPOINT ["/app/runtime/bin/node", "/app/bin/[APP_NAME].js"]
 CMD ["--config", "/data/config.json"]
 ```
 
+The Node builder carries no `--platform=$BUILDPLATFORM`, because a native addon has to be compiled for the architecture that will run it. Each target platform therefore builds its own emulated builder, which is slower than the Go path and unavoidable.
+
 The runtime is downloaded in the builder and copied forward, so the final image needs no Node installation and the version is fixed by the build argument rather than by a base image tag.
 
 `npm ci --omit=dev` installs only what the process runs. Development dependencies in a production image are packages to patch that nothing imports.
@@ -183,6 +196,20 @@ services:
 
 The host directory backing `/data` is owned by UID 10001 on the host, because that is the user writing it inside the container. A `chown 10001:10001 ./data` before the first run is what keeps the container from failing to write on start.
 
+## Multi-arch
+
+The Dockerfile is half of a multi-arch image. The other half is the builder that assembles the manifest, since a plain `docker build` produces one architecture whatever the file says.
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 \
+  --build-arg VERSION=v1.2.3 \
+  -t [GITHUB_USER]/[APP_NAME]:v1.2.3 --push .
+```
+
+`--push` is not optional here. buildx cannot load a multi-platform result into the local daemon, which holds one image per tag, so a multi-arch build either pushes to a registry or is thrown away.
+
+In CI the same thing needs `docker/setup-qemu-action` before `docker/setup-buildx-action`, since the emulation is what lets a non-native stage run at all. The Go template only reaches emulation for the tiny final stage, so registering QEMU costs a second and cross-compilation does the real work.
+
 ## Health Check
 
 Add one when something orchestrates the container and can act on the result. On a plain `docker run` it changes a status string and nothing else.
@@ -198,4 +225,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 |---|---|
 | `[APP_NAME]` | the application name and binary or entry file |
 | `[GITHUB_USER]` | the image namespace |
-| `1.26.6`, `3.24.1`, `trixie`, `24.19.0` | the current pinned versions, checked rather than assumed |
+| `1.26.7`, `3.24.1`, `trixie`, `24.19.0` | the current pinned versions, checked rather than assumed |

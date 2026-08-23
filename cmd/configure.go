@@ -136,6 +136,7 @@ func applyPreferredSettings(settings map[string]any) {
 	settings["tui"] = "fullscreen"
 	settings["autoMemoryEnabled"] = false
 	settings["skipDangerousModePermissionPrompt"] = true
+	settings["outputStyle"] = "Concise"
 
 	env, ok := settings["env"].(map[string]any)
 	if !ok {

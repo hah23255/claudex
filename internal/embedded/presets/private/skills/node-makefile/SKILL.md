@@ -12,9 +12,27 @@ The native-addon targets exist only when the project has one. A pure-JS app drop
 
 ## Assets Are Never Committed
 
-`make vendor` produces everything under `public/fonts/` and `public/vendor/`, and the release workflow calls that same target rather than reimplementing the copies. Both directories are listed in `.gitignore`, so the tree in git holds only what a person wrote.
+`make vendor` produces everything under `public/fonts/`, `public/css/`, and `public/vendor/`, and the release workflow calls that same target rather than reimplementing the copies. Those directories are listed in `.gitignore`, so the tree in git holds only what a person wrote.
 
 Every version is pinned to an exact release. A floating range makes two builds of one commit differ, and moving a pin is an edit to this file, which is the intended maintenance cost.
+
+A stamp file guards the whole target and depends on the Makefile and the lockfile. `make bundle` on an unchanged checkout then vendors nothing, and a moved pin re-vendors everything.
+
+`.gitignore` needs its own entry for `public/.vendor-stamp`, which sits beside the vendored directories rather than inside one.
+
+## Fonts
+
+Three families are downloaded by default and all three come from Google Fonts as woff2. Nothing is converted, since the css2 endpoint already serves woff2 to a browser-shaped User-Agent.
+
+| Family | Role |
+|---|---|
+| Inter | body and UI text |
+| Google Sans | display headings and branding |
+| JetBrains Mono | code and monospace |
+
+Only the `latin` and `latin-ext` blocks of each stylesheet are kept. Google Fonts declares every subset it has, which for Google Sans is twenty-five files covering scripts the page never renders, and the release bundle carries all of them. Filtering leaves six woff2 files across the three families.
+
+The Nerd Font variant is off by default. It exists only for a page that renders Nerd Font glyphs, and it costs two megabytes and roughly ten seconds of woff2 compression against sixty kilobytes and half a second for the plain family. Set `NERDFONT := 1` in the Makefile when a page needs the glyphs; the target then fills the same `css/jetbrains-mono.css` under the same `JetBrains Mono` family name, so no page changes either way.
 
 ## Toolchain
 
@@ -38,8 +56,14 @@ PUBLIC_DIR := public
 VENDOR_DIR := $(PUBLIC_DIR)/vendor
 CSS_DIR    := $(PUBLIC_DIR)/css
 FONTS_DIR  := $(PUBLIC_DIR)/fonts
+STAMP      := $(PUBLIC_DIR)/.vendor-stamp
 
 NERDFONT_VERSION := 3.5.0
+
+# Only a page that renders Nerd Font glyphs needs 1 here.
+NERDFONT := 0
+
+MONO := $(if $(filter 1,$(NERDFONT)),nerdfont,font FAMILY="JetBrains+Mono" SLUG=jetbrains-mono WEIGHTS="400;700")
 
 # Google Fonts serves woff2 only to a browser-shaped User-Agent; an unrecognized
 # one gets ttf, which is roughly twice the bytes.
@@ -76,24 +100,33 @@ node_modules: package-lock.json
 # =============================================================================
 # Vendor the frontend
 # =============================================================================
-vendor: node_modules ## Copy JS deps and download fonts into public/
+vendor: $(STAMP) ## Copy JS deps and download fonts into public/
+	@:
+
+# Every pin lives in this file or the lockfile, so moving one invalidates the stamp.
+$(STAMP): Makefile package-lock.json | node_modules
 	@mkdir -p $(VENDOR_DIR) $(CSS_DIR) $(FONTS_DIR)
+	@cp node_modules/@tailwindcss/browser/dist/index.global.js $(VENDOR_DIR)/tailwind.js
+	@cp node_modules/lucide/dist/umd/lucide.min.js $(VENDOR_DIR)/lucide.min.js
 	@cp node_modules/@xterm/xterm/lib/xterm.js $(VENDOR_DIR)/xterm.js
 	@cp node_modules/@xterm/xterm/css/xterm.css $(VENDOR_DIR)/xterm.css
 	@$(MAKE) --no-print-directory font FAMILY="Inter" SLUG=inter WEIGHTS="400;500;600;700"
 	@$(MAKE) --no-print-directory font FAMILY="Google+Sans" SLUG=google-sans WEIGHTS="400;500;700"
-	@$(MAKE) --no-print-directory nerdfont
+	@$(MAKE) --no-print-directory $(MONO)
+	@touch $(STAMP)
 	@echo "$(GREEN)Assets vendored$(NC)"
 
-# One Google Fonts family: fetch the stylesheet, pull every woff2 it names, and
-# repoint the URLs at the local copies so nothing is fetched at run time.
+# URLs are repointed locally so no font is fetched at run time, and only the latin
+# blocks are kept because the release bundle carries every other subset too.
 font:
 	@curl -sfL -H "User-Agent: $(UA)" \
 	  "https://fonts.googleapis.com/css2?family=$(FAMILY):wght@$(WEIGHTS)&display=swap" \
-	  -o "$(CSS_DIR)/$(SLUG).css"
-	@grep -o 'https://fonts.gstatic.com/[^)]*' "$(CSS_DIR)/$(SLUG).css" | sort -u | while read -r url; do \
-	  curl -sfL "$$url" -o "$(FONTS_DIR)/$$(basename "$$url")"; \
-	done
+	  -o "$(CSS_DIR)/$(SLUG).raw"
+	@awk '/^\/\* /{keep = ($$0 ~ /^\/\* latin(-ext)? \*\/$$/)} keep' \
+	  "$(CSS_DIR)/$(SLUG).raw" > "$(CSS_DIR)/$(SLUG).css"
+	@rm -f "$(CSS_DIR)/$(SLUG).raw"
+	@grep -o 'https://fonts.gstatic.com/[^)]*' "$(CSS_DIR)/$(SLUG).css" | sort -u \
+	  | xargs -P 8 -I{} sh -c 'curl -sfL "$$1" -o "$(FONTS_DIR)/$$(basename "$$1")"' _ {}
 	@sed -i.bak -E 's|https://fonts\.gstatic\.com/[^)]*/([^/)]+)|/fonts/\1|g' "$(CSS_DIR)/$(SLUG).css"
 	@rm -f "$(CSS_DIR)/$(SLUG).css.bak"
 
@@ -101,13 +134,14 @@ font:
 # comes from the nerd-fonts release as ttf and is compressed to woff2 here.
 nerdfont:
 	@set -e; tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
-	curl -sfL -o "$$tmp/JetBrainsMono.zip" \
-	  "https://github.com/ryanoasis/nerd-fonts/releases/download/v$(NERDFONT_VERSION)/JetBrainsMono.zip"; \
-	unzip -q -j "$$tmp/JetBrainsMono.zip" \
-	  JetBrainsMonoNerdFontMono-Regular.ttf JetBrainsMonoNerdFontMono-Bold.ttf -d "$$tmp"; \
+	curl -sfL -o "$$tmp/JetBrainsMono.tar.xz" \
+	  "https://github.com/ryanoasis/nerd-fonts/releases/download/v$(NERDFONT_VERSION)/JetBrainsMono.tar.xz"; \
+	tar -xJf "$$tmp/JetBrainsMono.tar.xz" -C "$$tmp" \
+	  JetBrainsMonoNerdFontMono-Regular.ttf JetBrainsMonoNerdFontMono-Bold.ttf; \
 	for w in Regular Bold; do \
-	  $(UVX) --from "fonttools[woff]" fonttools ttLib.woff2 compress \
-	    -o "$(FONTS_DIR)/JetBrainsMonoNerdFontMono-$$w.woff2" "$$tmp/JetBrainsMonoNerdFontMono-$$w.ttf"; \
+	  $(UVX) -q --from "fonttools[woff]" fonttools ttLib.woff2 compress \
+	    -o "$(FONTS_DIR)/JetBrainsMonoNerdFontMono-$$w.woff2" \
+	    "$$tmp/JetBrainsMonoNerdFontMono-$$w.ttf" >/dev/null 2>&1; \
 	done
 	@{ \
 	  for pair in 400:Regular 700:Bold; do \
@@ -135,7 +169,7 @@ binary: vendor ## Compile a single self-contained binary (pure-JS apps only)
 	@echo "$(GREEN)Built: dist/$(APP_NAME)$(NC)"
 
 clean: ## Remove node_modules, vendored assets, and build output
-	@rm -rf node_modules $(VENDOR_DIR) $(CSS_DIR)/inter.css $(CSS_DIR)/google-sans.css $(CSS_DIR)/jetbrains-mono.css $(FONTS_DIR) dist
+	@rm -rf node_modules $(VENDOR_DIR) $(CSS_DIR)/inter.css $(CSS_DIR)/google-sans.css $(CSS_DIR)/jetbrains-mono.css $(FONTS_DIR) $(STAMP) dist
 	@echo "$(GREEN)Cleaned$(NC)"
 
 # =============================================================================
@@ -169,11 +203,15 @@ version: ## Print the next version, derived from the last commit message
 
 `vendor` copies JS from `node_modules` rather than downloading it, because the version is already pinned in `package-lock.json` and a second source of truth would drift from it. Fonts are downloaded, since they are not npm packages.
 
+Tailwind and Lucide are vendored the same way, from `@tailwindcss/browser` and `lucide` in `package.json`, so the Node frontend styles itself with the same utilities and icons as the Go one.
+
+Every target is silent on success apart from the one line that says what it produced. A tool that narrates its own progress buries the one line a failed build needs, which is why `fonttools` has both its streams redirected and `uv` runs under `-q`.
+
 The `version` target uses the same commit-marker convention and the same calculation as the Go Makefile. The release workflow calls `make -s version` rather than reimplementing it.
 
 | Placeholder | Replace with |
 |---|---|
 | `[APP_NAME]` | the application name |
-| `@xterm/xterm` copies | whatever JS the frontend actually vendors |
+| `@xterm/xterm` copies | whatever JS the frontend vendors beyond Tailwind and Lucide |
 | `node-pty` in `verify` | the project's real native addon, or delete the target |
 | `NODE_VERSION` | the pinned version, matching `.node-version` |

@@ -1,6 +1,6 @@
 ---
 name: github-release-workflow
-description: The GitHub Actions release workflow and the semver commit-marker convention. Use when creating or changing .github/workflows/release.yaml, adding a build job or a platform to the matrix, wiring container publishing, or working out how a release version is chosen. Triggers on release.yaml, gh release create, draft releases, actions/checkout, actions/setup-go, actions/setup-node, docker/login-action, [minor-release], and [major-release].
+description: The GitHub Actions release workflow and the semver commit-marker convention. Use when creating or changing .github/workflows/release.yaml, adding a build job or a platform to the matrix, wiring container publishing, or working out how a release version is chosen. Triggers on release.yaml, gh release create, draft releases, actions/checkout, actions/setup-go, actions/setup-node, docker/login-action, docker/build-push-action, multi-arch image publishing, [minor-release], and [major-release].
 user-invocable: false
 ---
 
@@ -48,6 +48,9 @@ Actions are pinned to a major tag, verified against the action's own releases ra
 | `actions/setup-go` | `v7` |
 | `actions/setup-node` | `v7` |
 | `docker/login-action` | `v4` |
+| `docker/setup-qemu-action` | `v4` |
+| `docker/setup-buildx-action` | `v4` |
+| `docker/build-push-action` | `v7` |
 
 ## Secrets
 
@@ -124,13 +127,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: docker/setup-qemu-action@v4
+
+      - uses: docker/setup-buildx-action@v4
+
       - uses: docker/login-action@v4
         with:
           username: [GITHUB_USER]
           password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
 
-      - name: Build and push
-        run: make docker-push VERSION=${{ needs.create-release.outputs.version }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            VERSION=${{ needs.create-release.outputs.version }}
+          tags: |
+            [GITHUB_USER]/[APP_NAME]:latest
+            [GITHUB_USER]/[APP_NAME]:${{ needs.create-release.outputs.version }}
 
   binaries:
     needs: create-release
@@ -187,6 +202,10 @@ jobs:
 Both build jobs run `make assets` rather than restoring a cached tree, because the asset directories are not in the repository and the Makefile is the only definition of what they contain.
 
 `cleanup-on-failure` guards on `release_created` so a failure in the version step, before any draft exists, does not try to delete one.
+
+The docker job builds `linux/amd64` and `linux/arm64` into one manifest. `build-push-action` is used rather than `make docker-push` because the buildx driver and the registry cache belong to the runner rather than to the Makefile, and a plain `docker build` on the runner would publish an amd64 image that an arm64 host cannot run.
+
+QEMU is registered before buildx because it is what lets a non-native stage execute at all. A Go build cross-compiles and only its final stage is emulated, so the setup step costs a second; a Node build with a native addon runs its whole builder emulated and takes materially longer.
 
 ## Node Template
 

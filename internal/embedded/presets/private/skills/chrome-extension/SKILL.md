@@ -192,8 +192,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  background-color: var(--base);
-  color: var(--text);
+  background-color: var(--crust);
+  color: var(--subtext0);
   min-width: 320px;
   max-width: 400px;
 }
