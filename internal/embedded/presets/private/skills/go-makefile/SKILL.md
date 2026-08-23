@@ -18,10 +18,26 @@ Those directories are listed in `.gitignore`. A downloaded asset in a commit is 
 
 Every version is pinned to an exact release. A floating `@latest` makes two builds of one commit differ, and a new major arriving overnight breaks rendering with no diff to point at. Moving a pin is an edit to this file, which is the intended maintenance cost.
 
+The whole target is guarded by a stamp file whose only prerequisite is the Makefile. `make build` on an unchanged checkout then downloads nothing, and moving any pin re-downloads everything, because every pin lives in the file the stamp depends on.
+
+## Fonts
+
+Three families are downloaded by default and all three come from Google Fonts as woff2. Nothing is converted, since the css2 endpoint already serves woff2 to a browser-shaped User-Agent.
+
+| Family | Role |
+|---|---|
+| Inter | body and UI text |
+| Google Sans | display headings and branding |
+| JetBrains Mono | code and monospace |
+
+Only the `latin` and `latin-ext` blocks of each stylesheet are kept. Google Fonts declares every subset it has, which for Google Sans is twenty-five files covering scripts the page never renders, and `go:embed` compiles all of them into the binary whether a browser asks for them or not. Filtering leaves six woff2 files across the three families.
+
+The Nerd Font variant is off by default. It exists only for a page that renders Nerd Font glyphs, and it costs two megabytes and roughly ten seconds of woff2 compression against sixty kilobytes and half a second for the plain family. Set `NERDFONT := 1` in the Makefile when a page needs the glyphs; the target then fills the same `css/jetbrains-mono.css` under the same `JetBrains Mono` family name, so no page changes either way.
+
 ## Template
 
 ```makefile
-.PHONY: help assets verify-assets font nerdfont clean build build-for build-all docker-build docker-push version
+.PHONY: help assets verify-assets font nerdfont fontawesome clean build build-for build-all docker-build docker-push version
 
 # =============================================================================
 # Variables
@@ -36,20 +52,27 @@ GOARCH  ?= $(shell go env GOARCH)
 
 # Pinned asset versions. Bump deliberately, never float.
 TAILWIND_VERSION    := 4.3.3
-LUCIDE_VERSION      := 1.31.0
+LUCIDE_VERSION      := 1.33.0
 FONTAWESOME_VERSION := 7.3.1
 DEVICON_VERSION     := 2.17.0
-MARKED_VERSION      := 18.0.9
+MARKED_VERSION      := 18.0.10
 HIGHLIGHTJS_VERSION := 11.12.0
-MERMAID_VERSION     := 11.16.1
+MERMAID_VERSION     := 11.17.0
 CHARTJS_VERSION     := 4.5.1
 NERDFONT_VERSION    := 3.5.0
+
+# Set to 1 only when the page renders Nerd Font glyphs. The plain family covers
+# every other case at a fortieth of the bytes.
+NERDFONT := 0
 
 STATIC_DIR := internal/server/static
 JS_DIR     := $(STATIC_DIR)/js
 CSS_DIR    := $(STATIC_DIR)/css
 FONTS_DIR  := $(STATIC_DIR)/fonts
 FA_DIR     := $(STATIC_DIR)/fontawesome
+STAMP      := $(STATIC_DIR)/.assets-stamp
+
+MONO := $(if $(filter 1,$(NERDFONT)),nerdfont,font FAMILY="JetBrains+Mono" SLUG=jetbrains-mono WEIGHTS="400;700")
 
 # Google Fonts serves woff2 only to a browser-shaped User-Agent; an unrecognized
 # one gets ttf, which is roughly twice the bytes.
@@ -73,11 +96,16 @@ help: ## Show this help
 # =============================================================================
 # Assets  --  delete this whole block for CLI Only
 # =============================================================================
-assets: ## Download pinned frontend assets (never committed)
+assets: $(STAMP) ## Download pinned frontend assets (never committed)
+	@:
+
+# The stamp depends on this file because every pin lives in it, so a bumped
+# version re-downloads and an untouched one leaves `make build` offline.
+$(STAMP):$(MAKEFILE_LIST)
 	@mkdir -p $(JS_DIR) $(CSS_DIR) $(FONTS_DIR) $(FA_DIR)/css $(FA_DIR)/webfonts
 	@curl -sfL "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@$(TAILWIND_VERSION)" -o "$(JS_DIR)/tailwind.js"
 	@curl -sfL "https://cdn.jsdelivr.net/npm/lucide@$(LUCIDE_VERSION)/dist/umd/lucide.min.js" -o "$(JS_DIR)/lucide.min.js"
-	@curl -sfL "https://cdn.jsdelivr.net/npm/marked@$(MARKED_VERSION)/marked.min.js" -o "$(JS_DIR)/marked.min.js"
+	@curl -sfL "https://cdn.jsdelivr.net/npm/marked@$(MARKED_VERSION)/lib/marked.umd.js" -o "$(JS_DIR)/marked.umd.js"
 	@curl -sfL "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@$(HIGHLIGHTJS_VERSION)/highlight.min.js" -o "$(JS_DIR)/highlight.min.js"
 	@curl -sfL "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@$(HIGHLIGHTJS_VERSION)/styles/github-dark.min.css" -o "$(CSS_DIR)/github-dark.min.css"
 	@curl -sfL "https://cdn.jsdelivr.net/npm/mermaid@$(MERMAID_VERSION)/dist/mermaid.min.js" -o "$(JS_DIR)/mermaid.min.js"
@@ -86,32 +114,39 @@ assets: ## Download pinned frontend assets (never committed)
 	@$(MAKE) --no-print-directory fontawesome
 	@$(MAKE) --no-print-directory font FAMILY="Inter" SLUG=inter WEIGHTS="400;500;600;700"
 	@$(MAKE) --no-print-directory font FAMILY="Google+Sans" SLUG=google-sans WEIGHTS="400;500;700"
-	@$(MAKE) --no-print-directory nerdfont
+	@$(MAKE) --no-print-directory $(MONO)
+	@touch $(STAMP)
 	@echo "$(GREEN)Assets downloaded$(NC)"
 
-# One Google Fonts family: fetch the stylesheet, pull every woff2 it names, and
-# repoint the URLs at the local copies so nothing is fetched at run time.
+# One Google Fonts family: fetch the stylesheet, keep the latin blocks, pull the
+# woff2 files those name, and repoint the URLs at the local copies so nothing is
+# fetched at run time. The other twenty-odd subsets are bytes the page never
+# serves and `go:embed` compiles all of them into the binary.
 font:
 	@curl -sfL -H "User-Agent: $(UA)" \
 	  "https://fonts.googleapis.com/css2?family=$(FAMILY):wght@$(WEIGHTS)&display=swap" \
-	  -o "$(CSS_DIR)/$(SLUG).css"
-	@grep -o 'https://fonts.gstatic.com/[^)]*' "$(CSS_DIR)/$(SLUG).css" | sort -u | while read -r url; do \
-	  curl -sfL "$$url" -o "$(FONTS_DIR)/$$(basename "$$url")"; \
-	done
+	  -o "$(CSS_DIR)/$(SLUG).raw"
+	@awk '/^\/\* /{keep = ($$0 ~ /^\/\* latin(-ext)? \*\/$$/)} keep' \
+	  "$(CSS_DIR)/$(SLUG).raw" > "$(CSS_DIR)/$(SLUG).css"
+	@rm -f "$(CSS_DIR)/$(SLUG).raw"
+	@grep -o 'https://fonts.gstatic.com/[^)]*' "$(CSS_DIR)/$(SLUG).css" | sort -u \
+	  | xargs -P 8 -I{} sh -c 'curl -sfL "$$1" -o "$(FONTS_DIR)/$$(basename "$$1")"' _ {}
 	@sed -i.bak -E 's|https://fonts\.gstatic\.com/[^)]*/([^/)]+)|/static/fonts/\1|g' "$(CSS_DIR)/$(SLUG).css"
 	@rm -f "$(CSS_DIR)/$(SLUG).css.bak"
 
 # The Nerd Font variant carries the extra glyphs and is not on Google Fonts, so it
-# comes from the nerd-fonts release as ttf and is compressed to woff2 here.
+# comes from the nerd-fonts release as ttf and is compressed to woff2 here. The
+# tar.xz holds the same fonts as the zip in a twentieth of the bytes.
 nerdfont:
 	@set -e; tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
-	curl -sfL -o "$$tmp/JetBrainsMono.zip" \
-	  "https://github.com/ryanoasis/nerd-fonts/releases/download/v$(NERDFONT_VERSION)/JetBrainsMono.zip"; \
-	unzip -q -j "$$tmp/JetBrainsMono.zip" \
-	  JetBrainsMonoNerdFontMono-Regular.ttf JetBrainsMonoNerdFontMono-Bold.ttf -d "$$tmp"; \
+	curl -sfL -o "$$tmp/JetBrainsMono.tar.xz" \
+	  "https://github.com/ryanoasis/nerd-fonts/releases/download/v$(NERDFONT_VERSION)/JetBrainsMono.tar.xz"; \
+	tar -xJf "$$tmp/JetBrainsMono.tar.xz" -C "$$tmp" \
+	  JetBrainsMonoNerdFontMono-Regular.ttf JetBrainsMonoNerdFontMono-Bold.ttf; \
 	for w in Regular Bold; do \
-	  $(UVX) --from "fonttools[woff]" fonttools ttLib.woff2 compress \
-	    -o "$(FONTS_DIR)/JetBrainsMonoNerdFontMono-$$w.woff2" "$$tmp/JetBrainsMonoNerdFontMono-$$w.ttf"; \
+	  $(UVX) -q --from "fonttools[woff]" fonttools ttLib.woff2 compress \
+	    -o "$(FONTS_DIR)/JetBrainsMonoNerdFontMono-$$w.woff2" \
+	    "$$tmp/JetBrainsMonoNerdFontMono-$$w.ttf" >/dev/null 2>&1; \
 	done
 	@{ \
 	  for pair in 400:Regular 700:Bold; do \
@@ -131,17 +166,16 @@ fontawesome:
 	@rm -f "$(FA_DIR)/css/all.min.css.bak"
 
 verify-assets: ## Fail early if the embedded tree is missing an asset
-	@test -f $(JS_DIR)/tailwind.js || (echo "tailwind.js missing, run 'make assets'" && exit 1)
-	@test -f $(CSS_DIR)/inter.css || (echo "inter.css missing, run 'make assets'" && exit 1)
-	@test -f $(CSS_DIR)/google-sans.css || (echo "google-sans.css missing, run 'make assets'" && exit 1)
-	@test -f $(CSS_DIR)/jetbrains-mono.css || (echo "jetbrains-mono.css missing, run 'make assets'" && exit 1)
-	@echo "$(GREEN)Assets verified$(NC)"
+	@test -s $(JS_DIR)/tailwind.js || (echo "tailwind.js missing, run 'make assets'" && exit 1)
+	@test -s $(CSS_DIR)/inter.css || (echo "inter.css missing, run 'make assets'" && exit 1)
+	@test -s $(CSS_DIR)/google-sans.css || (echo "google-sans.css missing, run 'make assets'" && exit 1)
+	@test -s $(CSS_DIR)/jetbrains-mono.css || (echo "jetbrains-mono.css missing, run 'make assets'" && exit 1)
 
 # =============================================================================
 # Build
 # =============================================================================
 clean: ## Remove built binaries and downloaded assets
-	@rm -f $(APP_NAME) $(APP_NAME)-*
+	@rm -f $(APP_NAME) $(APP_NAME)-* $(STAMP)
 	@rm -rf $(JS_DIR) $(CSS_DIR) $(FONTS_DIR) $(FA_DIR)
 	@echo "$(GREEN)Cleaned$(NC)"
 
@@ -164,13 +198,18 @@ build-all: assets verify-assets ## Build every platform binary
 # =============================================================================
 # Docker  --  delete this whole block for CLI Only
 # =============================================================================
-docker-build: ## Build the container image
-	@docker build -t $(DOCKER_USER)/$(APP_NAME):$(VERSION) .
+docker-build: ## Build the container image for this machine
+	@docker build --build-arg VERSION=$(VERSION) -t $(DOCKER_USER)/$(APP_NAME):$(VERSION) .
 	@docker tag $(DOCKER_USER)/$(APP_NAME):$(VERSION) $(DOCKER_USER)/$(APP_NAME):latest
 
-docker-push: docker-build ## Build and push the container image
-	@docker push $(DOCKER_USER)/$(APP_NAME):$(VERSION)
-	@docker push $(DOCKER_USER)/$(APP_NAME):latest
+# buildx cannot load a multi-platform result into the local daemon, so the
+# manifest is built and pushed in one step rather than built then pushed.
+docker-push: ## Build linux/amd64 and linux/arm64 and push one manifest
+	@docker buildx build --platform linux/amd64,linux/arm64 \
+	  --build-arg VERSION=$(VERSION) \
+	  -t $(DOCKER_USER)/$(APP_NAME):$(VERSION) \
+	  -t $(DOCKER_USER)/$(APP_NAME):latest \
+	  --push .
 
 # =============================================================================
 # Version
@@ -195,9 +234,13 @@ version: ## Print the next version, derived from the last commit message
 
 ## Notes
 
-`make build` depends on `assets` so a fresh clone compiles: `//go:embed static` fails at compile time when the directory it names is empty, and an untracked asset tree means it always is on a first checkout.
+`make build` depends on `assets` so a fresh clone compiles. `//go:embed static` fails at compile time when the directory it names is empty, and an untracked asset tree means it always is on a first checkout.
 
 `build-for` depends on `verify-assets` rather than `assets`, so a matrix of platform builds downloads once and then checks, instead of re-downloading per architecture.
+
+Every target is silent on success apart from the one line that says what it produced. A tool that narrates its own progress buries the one line a failed build needs, which is why `fonttools` has both its streams redirected and `uv` runs under `-q`.
+
+`docker-push` builds both architectures with buildx rather than tagging whatever the local daemon produced, so the pushed manifest serves an arm64 host an arm64 image.
 
 `CGO_ENABLED=0` produces a static binary with no libc dependency, which is what lets one Linux build run on any distribution and lets the container's final stage be almost empty.
 
