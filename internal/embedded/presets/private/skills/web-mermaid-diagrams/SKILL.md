@@ -1,6 +1,6 @@
 ---
 name: web-mermaid-diagrams
-description: Catppuccin Mocha themed Mermaid diagrams in a browser page. Use when a frontend renders flowcharts, sequence diagrams, gantt charts, pie charts, git graphs, state diagrams, timelines, or mindmaps, or when Mermaid output does not match the page theme. Triggers on mermaid.initialize, mermaid.run, themeVariables, startOnLoad, a mermaid code fence, and diagrams rendering with default colors on a dark page.
+description: Catppuccin Mocha themed Mermaid diagrams in a browser page. Use when a frontend renders flowcharts, sequence diagrams, gantt charts, pie charts, git graphs, state diagrams, timelines, or mindmaps, or when Mermaid output does not match the page theme. Triggers on mermaid.initialize, mermaid.run, themeVariables, startOnLoad, a mermaid code fence, and diagrams rendering with default colors or on the wrong surface.
 user-invocable: false
 ---
 
@@ -8,7 +8,7 @@ user-invocable: false
 
 **One config object themes every Mermaid diagram type in Catppuccin Mocha.**
 
-Mermaid is vendored and pinned at `mermaid@11.16.1`, served from the page's own origin.
+Mermaid is vendored and pinned at `mermaid@11.17.0`, served from the page's own origin.
 
 ```html
 <script src="/static/js/mermaid.min.js"></script>
@@ -33,6 +33,15 @@ A `mermaid` code fence becomes a `<div class="mermaid">` during Markdown parsing
 
 ## Config
 
+Every color is read off the page palette at run time rather than written as a literal, so a diagram follows the theme the page is actually wearing. Mermaid derives shades from several of these with its own color math, which needs a resolved value, so `getComputedStyle` is what supplies them rather than a `var()` reference passed through.
+
+```javascript
+const css = getComputedStyle(document.documentElement);
+const c = (name) => css.getPropertyValue(`--ctp-${name}`).trim();
+```
+
+The diagram canvas takes `base`, the same rung as the container it sits in, so the two do not read as a box inside a box. Nodes sit one rung up on `surface0` and a cluster groups them one rung down on `mantle`.
+
 ```javascript
 const mermaidConfig = {
     startOnLoad: false,
@@ -40,110 +49,112 @@ const mermaidConfig = {
     fontFamily: 'Inter',
     themeVariables: {
         darkMode: true,
-        background: '#1e1e2e',
-        mainBkg: '#1e1e2e',
+        background: c('base'),
+        mainBkg: c('base'),
 
-        primaryColor: '#313244',
-        primaryTextColor: '#cdd6f4',
-        primaryBorderColor: '#89b4fa',
-        secondaryColor: '#45475a',
-        secondaryTextColor: '#cdd6f4',
-        secondaryBorderColor: '#7f849c',
-        tertiaryColor: '#313244',
-        tertiaryTextColor: '#cdd6f4',
-        tertiaryBorderColor: '#585b70',
+        primaryColor: c('surface0'),
+        primaryTextColor: c('text'),
+        primaryBorderColor: c('blue'),
+        secondaryColor: c('surface1'),
+        secondaryTextColor: c('text'),
+        secondaryBorderColor: c('overlay1'),
+        tertiaryColor: c('surface0'),
+        tertiaryTextColor: c('text'),
+        tertiaryBorderColor: c('surface2'),
 
-        lineColor: '#89b4fa',
-        arrowheadColor: '#89b4fa',
-        textColor: '#cdd6f4',
-        titleColor: '#cba6f7',
-        noteBkgColor: '#45475a',
-        noteTextColor: '#f9e2af',
-        noteBorderColor: '#585b70',
+        lineColor: c('blue'),
+        arrowheadColor: c('blue'),
+        textColor: c('text'),
+        titleColor: c('mauve'),
+        noteBkgColor: c('surface1'),
+        noteTextColor: c('yellow'),
+        noteBorderColor: c('surface2'),
 
         // Flowchart
-        nodeBkg: '#313244',
-        nodeBorder: '#89b4fa',
-        clusterBkg: '#181825',
-        clusterBorder: '#585b70',
-        defaultLinkColor: '#89b4fa',
-        edgeLabelBackground: '#313244',
-        nodeTextColor: '#cdd6f4',
+        nodeBkg: c('surface0'),
+        nodeBorder: c('blue'),
+        clusterBkg: c('mantle'),
+        clusterBorder: c('surface2'),
+        defaultLinkColor: c('blue'),
+        edgeLabelBackground: c('surface0'),
+        nodeTextColor: c('text'),
 
         // Sequence
-        actorBkg: '#313244',
-        actorBorder: '#89b4fa',
-        actorTextColor: '#cdd6f4',
-        actorLineColor: '#585b70',
-        signalColor: '#f5c2e7',
-        signalTextColor: '#cdd6f4',
-        labelBoxBkgColor: '#45475a',
-        labelBoxBorderColor: '#585b70',
-        labelTextColor: '#cdd6f4',
-        loopTextColor: '#f9e2af',
-        activationBorderColor: '#cba6f7',
-        activationBkgColor: '#45475a',
-        sequenceNumberColor: '#1e1e2e',
+        actorBkg: c('surface0'),
+        actorBorder: c('blue'),
+        actorTextColor: c('text'),
+        actorLineColor: c('surface2'),
+        signalColor: c('pink'),
+        signalTextColor: c('text'),
+        labelBoxBkgColor: c('surface1'),
+        labelBoxBorderColor: c('surface2'),
+        labelTextColor: c('text'),
+        loopTextColor: c('yellow'),
+        activationBorderColor: c('mauve'),
+        activationBkgColor: c('surface1'),
+        sequenceNumberColor: c('base'),
 
         // Gantt
-        sectionBkgColor: '#181825',
-        altSectionBkgColor: '#1e1e2e',
-        sectionBkgColor2: '#11111b',
-        taskBkgColor: '#89b4fa',
-        taskBorderColor: '#b4befe',
-        taskTextColor: '#1e1e2e',
-        taskTextLightColor: '#1e1e2e',
-        taskTextDarkColor: '#cdd6f4',
-        taskTextOutsideColor: '#cdd6f4',
-        taskTextClickableColor: '#89dceb',
-        activeTaskBkgColor: '#cba6f7',
-        activeTaskBorderColor: '#f5c2e7',
-        doneTaskBkgColor: '#45475a',
-        doneTaskBorderColor: '#585b70',
-        critBkgColor: '#f38ba8',
-        critBorderColor: '#eba0ac',
-        gridColor: '#313244',
-        todayLineColor: '#f38ba8',
+        sectionBkgColor: c('mantle'),
+        altSectionBkgColor: c('base'),
+        sectionBkgColor2: c('crust'),
+        taskBkgColor: c('blue'),
+        taskBorderColor: c('lavender'),
+        taskTextColor: c('base'),
+        taskTextLightColor: c('base'),
+        taskTextDarkColor: c('text'),
+        taskTextOutsideColor: c('text'),
+        taskTextClickableColor: c('sky'),
+        activeTaskBkgColor: c('mauve'),
+        activeTaskBorderColor: c('pink'),
+        doneTaskBkgColor: c('surface1'),
+        doneTaskBorderColor: c('surface2'),
+        critBkgColor: c('red'),
+        critBorderColor: c('maroon'),
+        gridColor: c('surface0'),
+        todayLineColor: c('red'),
 
         // Pie, twelve distinct hues
-        pie1: '#cba6f7', pie2: '#89b4fa', pie3: '#a6e3a1', pie4: '#f9e2af',
-        pie5: '#f38ba8', pie6: '#94e2d5', pie7: '#fab387', pie8: '#89dceb',
-        pie9: '#f5c2e7', pie10: '#74c7ec', pie11: '#eba0ac', pie12: '#b4befe',
-        pieTitleTextColor: '#cdd6f4',
-        pieSectionTextColor: '#1e1e2e',
-        pieLegendTextColor: '#cdd6f4',
-        pieStrokeColor: '#1e1e2e',
-        pieOuterStrokeColor: '#313244',
+        pie1: c('mauve'), pie2: c('blue'), pie3: c('green'), pie4: c('yellow'),
+        pie5: c('red'), pie6: c('teal'), pie7: c('peach'), pie8: c('sky'),
+        pie9: c('pink'), pie10: c('sapphire'), pie11: c('maroon'), pie12: c('lavender'),
+        pieTitleTextColor: c('text'),
+        pieSectionTextColor: c('base'),
+        pieLegendTextColor: c('text'),
+        pieStrokeColor: c('base'),
+        pieOuterStrokeColor: c('surface0'),
 
         // Git graph, eight branch colors
-        git0: '#89b4fa', git1: '#cba6f7', git2: '#a6e3a1', git3: '#f9e2af',
-        git4: '#f38ba8', git5: '#94e2d5', git6: '#fab387', git7: '#74c7ec',
-        gitInv0: '#1e1e2e', gitInv1: '#1e1e2e', gitInv2: '#1e1e2e', gitInv3: '#1e1e2e',
-        gitInv4: '#1e1e2e', gitInv5: '#1e1e2e', gitInv6: '#1e1e2e', gitInv7: '#1e1e2e',
-        commitLabelColor: '#bac2de',
-        commitLabelBackground: '#1e1e2e',
-        tagLabelColor: '#1e1e2e',
-        tagLabelBackground: '#f9e2af',
-        tagLabelBorder: '#fab387',
+        git0: c('blue'), git1: c('mauve'), git2: c('green'), git3: c('yellow'),
+        git4: c('red'), git5: c('teal'), git6: c('peach'), git7: c('sapphire'),
+        gitInv0: c('base'), gitInv1: c('base'), gitInv2: c('base'), gitInv3: c('base'),
+        gitInv4: c('base'), gitInv5: c('base'), gitInv6: c('base'), gitInv7: c('base'),
+        commitLabelColor: c('subtext1'),
+        commitLabelBackground: c('base'),
+        tagLabelColor: c('base'),
+        tagLabelBackground: c('yellow'),
+        tagLabelBorder: c('peach'),
 
         // State diagram
-        labelBackgroundColor: '#313244',
+        labelBackgroundColor: c('surface0'),
 
         // Color scale, used by mindmaps and timelines
-        cScale0: '#313244', cScale1: '#89b4fa', cScale2: '#cba6f7',  cScale3: '#a6e3a1',
-        cScale4: '#f9e2af', cScale5: '#f38ba8', cScale6: '#94e2d5',  cScale7: '#fab387',
-        cScale8: '#89dceb', cScale9: '#f5c2e7', cScale10: '#74c7ec', cScale11: '#b4befe',
+        cScale0: c('surface0'), cScale1: c('blue'), cScale2: c('mauve'),  cScale3: c('green'),
+        cScale4: c('yellow'), cScale5: c('red'), cScale6: c('teal'),  cScale7: c('peach'),
+        cScale8: c('sky'), cScale9: c('pink'), cScale10: c('sapphire'), cScale11: c('lavender'),
     },
 };
 ```
 
 The pie, git, and colour-scale series each cycle through the full Catppuccin accent range rather than shades of one hue, so adjacent slices and branches stay distinguishable.
 
+The config captures the palette once, so a page with a theme toggle rebuilds it and calls `mermaid.initialize` again before re-running. Already-rendered SVG keeps the colors it was drawn with.
+
 ## Container
 
 ```css
 .mermaid {
-    background-color: #181825;
+    background-color: var(--ctp-base);
     padding: 1rem;
     border-radius: 0.5rem;
     margin: 1.5rem 0;
@@ -160,25 +171,25 @@ Gantt charts read several colors from stylesheet rules rather than from `themeVa
 
 ```css
 .mermaid .grid .tick line {
-    stroke: #313244 !important;
+    stroke: var(--ctp-surface0) !important;
     stroke-width: 0.5px !important;
     opacity: 0.5 !important;
 }
-.mermaid .grid .tick text { fill: #a6adc8 !important; }
-.mermaid .grid path { stroke: #313244 !important; stroke-width: 0.5px !important; }
+.mermaid .grid .tick text { fill: var(--ctp-subtext0) !important; }
+.mermaid .grid path { stroke: var(--ctp-surface0) !important; stroke-width: 0.5px !important; }
 
 .mermaid .section { stroke: none !important; }
-.mermaid .section0, .mermaid .section2 { fill: #181825 !important; }
-.mermaid .section1, .mermaid .section3 { fill: #1e1e2e !important; }
+.mermaid .section0, .mermaid .section2 { fill: var(--ctp-mantle) !important; }
+.mermaid .section1, .mermaid .section3 { fill: var(--ctp-base) !important; }
 
-.mermaid .today { stroke: #f38ba8 !important; stroke-width: 2px !important; }
+.mermaid .today { stroke: var(--ctp-red) !important; stroke-width: 2px !important; }
 
-.mermaid .taskText { fill: #1e1e2e !important; font-size: 0.75em !important; }
+.mermaid .taskText { fill: var(--ctp-base) !important; font-size: 0.75em !important; }
 .mermaid .taskTextOutsideRight,
-.mermaid .taskTextOutsideLeft { fill: #cdd6f4 !important; }
+.mermaid .taskTextOutsideLeft { fill: var(--ctp-text) !important; }
 
-.mermaid .sectionTitle { fill: #cba6f7 !important; }
-.mermaid .titleText { fill: #cba6f7 !important; }
+.mermaid .sectionTitle { fill: var(--ctp-mauve) !important; }
+.mermaid .titleText { fill: var(--ctp-mauve) !important; }
 ```
 
 `!important` is load-bearing here, because Mermaid writes its own inline and generated styles onto these elements after the page stylesheet has been applied.
