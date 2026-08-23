@@ -20,6 +20,8 @@ Every version is pinned to an exact release. A floating `@latest` makes two buil
 
 The whole target is guarded by a stamp file whose only prerequisite is the Makefile. `make build` on an unchanged checkout then downloads nothing, and moving any pin re-downloads everything, because every pin lives in the file the stamp depends on.
 
+`.gitignore` needs its own entry for `internal/server/static/.assets-stamp`, which sits beside the asset directories rather than inside one. Its leading dot also keeps it out of `//go:embed static`, which skips names starting with `.` or `_`.
+
 ## Fonts
 
 Three families are downloaded by default and all three come from Google Fonts as woff2. Nothing is converted, since the css2 endpoint already serves woff2 to a browser-shaped User-Agent.
@@ -61,8 +63,7 @@ MERMAID_VERSION     := 11.17.0
 CHARTJS_VERSION     := 4.5.1
 NERDFONT_VERSION    := 3.5.0
 
-# Set to 1 only when the page renders Nerd Font glyphs. The plain family covers
-# every other case at a fortieth of the bytes.
+# Only a page that renders Nerd Font glyphs needs 1 here.
 NERDFONT := 0
 
 STATIC_DIR := internal/server/static
@@ -99,9 +100,8 @@ help: ## Show this help
 assets: $(STAMP) ## Download pinned frontend assets (never committed)
 	@:
 
-# The stamp depends on this file because every pin lives in it, so a bumped
-# version re-downloads and an untouched one leaves `make build` offline.
-$(STAMP):$(MAKEFILE_LIST)
+# Every pin lives in this file, so bumping one invalidates the stamp and re-downloads.
+$(STAMP): $(MAKEFILE_LIST)
 	@mkdir -p $(JS_DIR) $(CSS_DIR) $(FONTS_DIR) $(FA_DIR)/css $(FA_DIR)/webfonts
 	@curl -sfL "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@$(TAILWIND_VERSION)" -o "$(JS_DIR)/tailwind.js"
 	@curl -sfL "https://cdn.jsdelivr.net/npm/lucide@$(LUCIDE_VERSION)/dist/umd/lucide.min.js" -o "$(JS_DIR)/lucide.min.js"
@@ -118,10 +118,8 @@ $(STAMP):$(MAKEFILE_LIST)
 	@touch $(STAMP)
 	@echo "$(GREEN)Assets downloaded$(NC)"
 
-# One Google Fonts family: fetch the stylesheet, keep the latin blocks, pull the
-# woff2 files those name, and repoint the URLs at the local copies so nothing is
-# fetched at run time. The other twenty-odd subsets are bytes the page never
-# serves and `go:embed` compiles all of them into the binary.
+# URLs are repointed locally so no font is fetched at run time, and only the latin
+# blocks are kept because `go:embed` compiles every other subset into the binary too.
 font:
 	@curl -sfL -H "User-Agent: $(UA)" \
 	  "https://fonts.googleapis.com/css2?family=$(FAMILY):wght@$(WEIGHTS)&display=swap" \
@@ -135,8 +133,7 @@ font:
 	@rm -f "$(CSS_DIR)/$(SLUG).css.bak"
 
 # The Nerd Font variant carries the extra glyphs and is not on Google Fonts, so it
-# comes from the nerd-fonts release as ttf and is compressed to woff2 here. The
-# tar.xz holds the same fonts as the zip in a twentieth of the bytes.
+# comes from the nerd-fonts release as ttf and is compressed to woff2 here.
 nerdfont:
 	@set -e; tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
 	curl -sfL -o "$$tmp/JetBrainsMono.tar.xz" \

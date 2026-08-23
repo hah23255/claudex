@@ -212,8 +212,7 @@ Light and dark switching is added only when it is asked for. The `--ctp-*` indir
 
 ```html
 <style>
-  /* Catppuccin Latte, re-slotted. The neutrals shift one step so crust stays the
-     page ground, and the text ramp shifts with them so body copy clears 4.5:1. */
+  /* Catppuccin Latte, re-slotted so crust stays the page ground */
   :root:not(.dark) {
     --ctp-crust: #eff1f5; --ctp-mantle: #e6e9ef; --ctp-base: #dce0e8;
     --ctp-surface0: #ccd0da; --ctp-surface1: #bcc0cc; --ctp-surface2: #acb0be;

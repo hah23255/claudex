@@ -18,6 +18,8 @@ Every version is pinned to an exact release. A floating range makes two builds o
 
 A stamp file guards the whole target and depends on the Makefile and the lockfile. `make bundle` on an unchanged checkout then vendors nothing, and a moved pin re-vendors everything.
 
+`.gitignore` needs its own entry for `public/.vendor-stamp`, which sits beside the vendored directories rather than inside one.
+
 ## Fonts
 
 Three families are downloaded by default and all three come from Google Fonts as woff2. Nothing is converted, since the css2 endpoint already serves woff2 to a browser-shaped User-Agent.
@@ -58,8 +60,7 @@ STAMP      := $(PUBLIC_DIR)/.vendor-stamp
 
 NERDFONT_VERSION := 3.5.0
 
-# Set to 1 only when the page renders Nerd Font glyphs. The plain family covers
-# every other case at a fortieth of the bytes.
+# Only a page that renders Nerd Font glyphs needs 1 here.
 NERDFONT := 0
 
 MONO := $(if $(filter 1,$(NERDFONT)),nerdfont,font FAMILY="JetBrains+Mono" SLUG=jetbrains-mono WEIGHTS="400;700")
@@ -102,8 +103,7 @@ node_modules: package-lock.json
 vendor: $(STAMP) ## Copy JS deps and download fonts into public/
 	@:
 
-# The stamp depends on this file and the lockfile, so a moved pin re-vendors and
-# an untouched tree leaves `make bundle` offline.
+# Every pin lives in this file or the lockfile, so moving one invalidates the stamp.
 $(STAMP): Makefile package-lock.json | node_modules
 	@mkdir -p $(VENDOR_DIR) $(CSS_DIR) $(FONTS_DIR)
 	@cp node_modules/@tailwindcss/browser/dist/index.global.js $(VENDOR_DIR)/tailwind.js
@@ -116,10 +116,8 @@ $(STAMP): Makefile package-lock.json | node_modules
 	@touch $(STAMP)
 	@echo "$(GREEN)Assets vendored$(NC)"
 
-# One Google Fonts family: fetch the stylesheet, keep the latin blocks, pull the
-# woff2 files those name, and repoint the URLs at the local copies so nothing is
-# fetched at run time. The other twenty-odd subsets are bytes the page never
-# serves and the release bundle carries all of them.
+# URLs are repointed locally so no font is fetched at run time, and only the latin
+# blocks are kept because the release bundle carries every other subset too.
 font:
 	@curl -sfL -H "User-Agent: $(UA)" \
 	  "https://fonts.googleapis.com/css2?family=$(FAMILY):wght@$(WEIGHTS)&display=swap" \
@@ -133,8 +131,7 @@ font:
 	@rm -f "$(CSS_DIR)/$(SLUG).css.bak"
 
 # The Nerd Font variant carries the extra glyphs and is not on Google Fonts, so it
-# comes from the nerd-fonts release as ttf and is compressed to woff2 here. The
-# tar.xz holds the same fonts as the zip in a twentieth of the bytes.
+# comes from the nerd-fonts release as ttf and is compressed to woff2 here.
 nerdfont:
 	@set -e; tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
 	curl -sfL -o "$$tmp/JetBrainsMono.tar.xz" \
