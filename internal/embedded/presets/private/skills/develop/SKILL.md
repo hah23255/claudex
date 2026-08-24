@@ -38,7 +38,7 @@ Before writing code, emit a short checklist of the specific rules from the loade
 
 ```
 Rules in effect (CLI Only, new command):
-- Comments: default none; keep one only where its why is load-bearing
+- Comments: the comment rules in AGENTS.md (CLAUDE.md if you are Claude), quoted not summarized
 - Output through the utils printers, never fmt.Println
 - zerolog only behind --debug; utils printers otherwise
 - Tables via utils.PrintTable, honoring the --for-ai markdown path
@@ -47,7 +47,7 @@ Rules in effect (CLI Only, new command):
 - Scope: only the files this task names; nothing leaves the working directory
 ```
 
-The cross-cutting rules go on the list every time, comment discipline first among them, and with them the ones that reach past the diff: which files may be touched, what may not leave the working directory without being asked for, and what has to run before the work is called done. Being cross-cutting rather than task-specific, they are the first to fall off the list and the first to decay mid-session, and the written checklist is the defense against that.
+The cross-cutting rules go on the list every time, comment discipline first among them, and with them the ones that reach past the diff: which files may be touched, what may not leave the working directory without being asked for, and what has to run before the work is called done. A rule that comes from AGENTS.md (CLAUDE.md if you are Claude) goes on the list as a citation or a verbatim quote rather than in your own words, because a paraphrase of a strict rule loosens it every time. Being cross-cutting rather than task-specific, they are the first to fall off the list and the first to decay mid-session, and the written checklist is the defense against that.
 
 ## Step 4: Do the work
 
@@ -102,6 +102,6 @@ A whole project type pulls in a predictable set. A CLI Only tool takes the two G
 
 ## Principles
 
-Skills are the source of truth for what a rule is. Follow, and self-flag against, only what a loaded skill defines; anything no skill covers is not a rule and does not belong on the checklist.
+Skills are the source of truth for the conventions they cover, and AGENTS.md (CLAUDE.md if you are Claude) for the rules that hold on every task. Follow, and self-flag against, only those; anything neither covers is not a rule and does not belong on the checklist.
 
 Load and read before writing, not after. A convention applied retroactively is a second diff on top of the first.
