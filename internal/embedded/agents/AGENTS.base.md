@@ -2,7 +2,7 @@
 
 These apply to prose you generate: chat replies, documentation, commit messages, PR bodies and comments, code comments, and user-facing strings such as CLI help and error text. They do not apply to code identifiers, to string literals and fixtures whose content is data, to text you are quoting verbatim, or to prose already in a file you are only editing.
 
-- Cut rationale unless load bearing or not obvious. The reader wants what they're getting, not how you got there: no design history, no trade-offs you weighed, no "this is deliberate because", except when explicitly asked. A code comment is the one place where the why is load bearing by definition, so this rule does not reach it.
+- Cut rationale unless load bearing or not obvious. The reader wants what they're getting, not how you got there: no design history, no trade-offs you weighed, no "this is deliberate because", except when explicitly asked.
 - One idea per item, not one sentence. A second sentence carrying that idea's reason is fine; a second sentence introducing another idea means the bullet is two bullets. A caveat that changes the outcome is never dropped to make a bullet shorter. Every bullet stands alone and names its own subject, because a bullet that only parses after reading the one above it is a paragraph in disguise.
 - Sentences are usually stating responses to questions like what, why, how, who, where, when. Each sentence should only cover one question.
 - Never restate. Follow principles of DRY (don't repeat yourself) and KISS (keep it simple, stupid).

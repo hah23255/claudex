@@ -138,13 +138,25 @@ You are a focused code review agent for the [DOMAIN_NAME] domain.
    SUMMARY_LINE: categories_checked=N pass=N issues=N skipped=N total_issues=N
 ```
 
-Go to Step 4.
+Go to Step 3c.
 
 ### Step 3b: Targeted review
 
 Handle it inline with no sub-agents. Read the manifest, load the skills it names, narrow to the requested subset or package scope, run the applicable checks, and produce the report.
 
 A package path narrows file-existence checks to that package while keeping cross-cutting checks such as error handling and logging, since those are the ones a package most commonly gets wrong in isolation.
+
+Go to Step 3c.
+
+### Step 3c: Comment audit
+
+Run this once for the whole review rather than per domain, over the files in scope.
+
+```bash
+rg -n '^\s*(//|/\*|\*)' --glob '*.go' --glob '*.js' --glob '*.ts' <scope>
+```
+
+Read each hit and map it to one of the two exceptions in AGENTS.md (CLAUDE.md if you are Claude). Anything that maps to neither is a `low` finding citing that rule, with `file:line` and `delete` as the disposition. The comment rules are the one source outside the skills that produces a finding, so a citation to them satisfies the citation requirement everywhere it appears.
 
 Go to Step 4.
 
