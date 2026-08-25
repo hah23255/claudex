@@ -79,7 +79,7 @@ The LSP is already wired into every session for Go, Python, TypeScript, and Java
 | `.py`, `.pyi` | `pyright-langserver` |
 | `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs` | `typescript-language-server` |
 
-`goToDefinition`, `findReferences`, `goToImplementation`, `hover`, `documentSymbol`, and `workspaceSymbol` resolve a symbol rather than matching a string, which is what makes them better than `rg` for tracing a definition or every call site before changing one. `rg` and `grep` stay the tool for plain text and for a language no server covers.
+`goToDefinition`, `findReferences`, `goToImplementation`, `hover`, `documentSymbol`, and `workspaceSymbol` resolve a symbol rather than matching a string, which is what makes them better than `rg` for tracing a definition or every call site before changing one. `rg` and `grep` stay the tool for plain text and for a language no server covers, or if LSP doesn't work for some reason.
 
 ## Skill Map
 
