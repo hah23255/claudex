@@ -14,7 +14,6 @@ import (
 var AppVersion = "dev-build"
 
 var debugFlag bool
-var forAIFlag bool
 
 var rootCmd = &cobra.Command{
 	Use:     "claudex",
@@ -37,7 +36,7 @@ func setupLogs() {
 	output := zerolog.ConsoleWriter{
 		Out:        os.Stdout,
 		TimeFormat: time.DateTime,
-		NoColor:    false,
+		NoColor:    !utils.StdoutIsTerminal,
 	}
 	log.Logger = zerolog.New(output).With().Timestamp().Logger()
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
@@ -45,18 +44,12 @@ func setupLogs() {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 		utils.GlobalDebugFlag = true
 	}
-	if forAIFlag {
-		zerolog.SetGlobalLevel(zerolog.Disabled)
-		utils.GlobalForAIFlag = true
-	}
 }
 
 func init() {
 	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
 
 	rootCmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Enable debug logging")
-	rootCmd.PersistentFlags().BoolVar(&forAIFlag, "for-ai", false, "AI-friendly output (plain text, no colors)")
-	rootCmd.MarkFlagsMutuallyExclusive("debug", "for-ai")
 
 	cobra.OnInitialize(setupLogs)
 

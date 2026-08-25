@@ -1,10 +1,8 @@
 package utils
 
 import (
-	"bufio"
+	"errors"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/textarea"
@@ -13,39 +11,7 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-var stdinScanner *bufio.Scanner
-
-func getStdinScanner() *bufio.Scanner {
-	if stdinScanner == nil {
-		stdinScanner = bufio.NewScanner(os.Stdin)
-	}
-	return stdinScanner
-}
-
-func ReadPipedInput() string {
-	fi, err := os.Stdin.Stat()
-	if err != nil || fi.Mode()&os.ModeCharDevice != 0 {
-		return ""
-	}
-	scanner := getStdinScanner()
-	var lines []string
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	return strings.TrimSpace(strings.Join(lines, "\n"))
-}
-
-func ReadPipedLine() string {
-	fi, err := os.Stdin.Stat()
-	if err != nil || fi.Mode()&os.ModeCharDevice != 0 {
-		return ""
-	}
-	scanner := getStdinScanner()
-	if scanner.Scan() {
-		return strings.TrimSpace(scanner.Text())
-	}
-	return ""
-}
+var ErrNoTerminal = errors.New("no interactive terminal")
 
 type inputModel struct {
 	textInput textinput.Model
@@ -84,8 +50,8 @@ func (m inputModel) View() tea.View {
 }
 
 func PromptInput(prompt string, placeholder string) (string, error) {
-	if GlobalForAIFlag {
-		return ReadPipedLine(), nil
+	if !StdinIsTerminal {
+		return "", ErrNoTerminal
 	}
 
 	ti := textinput.New()
@@ -106,8 +72,8 @@ func PromptInput(prompt string, placeholder string) (string, error) {
 }
 
 func PromptPassword(prompt string) (string, error) {
-	if GlobalForAIFlag {
-		return ReadPipedLine(), nil
+	if !StdinIsTerminal {
+		return "", ErrNoTerminal
 	}
 
 	ti := textinput.New()
@@ -165,8 +131,8 @@ func (m textAreaModel) View() tea.View {
 }
 
 func PromptTextArea(prompt string, placeholder string) (string, error) {
-	if GlobalForAIFlag {
-		return ReadPipedInput(), nil
+	if !StdinIsTerminal {
+		return "", ErrNoTerminal
 	}
 
 	PrintInfo(prompt)
@@ -253,13 +219,8 @@ func (m selectModel) View() tea.View {
 }
 
 func PromptSelect(label string, options []string) (int, error) {
-	if GlobalForAIFlag {
-		line := ReadPipedLine()
-		n, err := strconv.Atoi(line)
-		if err != nil || n < 1 || n > len(options) {
-			return -1, fmt.Errorf("invalid selection: %s", line)
-		}
-		return n - 1, nil
+	if !StdinIsTerminal {
+		return -1, ErrNoTerminal
 	}
 
 	m := selectModel{label: label, options: options, selected: -1}
@@ -343,20 +304,8 @@ func (m multiSelectModel) View() tea.View {
 }
 
 func PromptMultiSelect(label string, options []string) (map[int]bool, error) {
-	if GlobalForAIFlag {
-		line := ReadPipedLine()
-		if line == "" || strings.EqualFold(line, "none") {
-			return make(map[int]bool), nil
-		}
-		selected := make(map[int]bool)
-		for _, part := range strings.Split(line, ",") {
-			n, err := strconv.Atoi(strings.TrimSpace(part))
-			if err != nil || n < 1 || n > len(options) {
-				continue
-			}
-			selected[n-1] = true
-		}
-		return selected, nil
+	if !StdinIsTerminal {
+		return nil, ErrNoTerminal
 	}
 
 	m := multiSelectModel{

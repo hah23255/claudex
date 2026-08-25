@@ -47,8 +47,8 @@ func runSwitch(cmd *cobra.Command, args []string) {
 			u.PrintSuccess(fmt.Sprintf("Project already in %s; nothing to switch", u.AbbreviatePath(target)))
 			return
 		}
-	} else if u.GlobalForAIFlag {
-		u.PrintFatal("switch needs -A/--account in --for-ai mode", nil)
+	} else if !u.StdinIsTerminal {
+		u.PrintFatal("switch needs -A/--account when there is no interactive terminal", nil)
 	}
 
 	source := sessions[0].configDir
@@ -64,7 +64,7 @@ func runSwitch(cmd *cobra.Command, args []string) {
 		}
 		moving = []sessionEntry{sessions[idx]}
 		singleSession = true
-	case u.GlobalForAIFlag || len(sessions) == 1:
+	case !u.StdinIsTerminal || len(sessions) == 1:
 		moving = inSource
 	default:
 		labels := make([]string, 0, len(sessions)+1)

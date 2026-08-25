@@ -47,7 +47,7 @@ func init() {
 }
 
 func runLaunch(cmd *cobra.Command, args []string) {
-	if u.GlobalForAIFlag {
+	if !u.StdinIsTerminal {
 		u.PrintFatal("launch requires an interactive terminal", nil)
 	}
 

@@ -48,7 +48,7 @@ make build
 
 ## Usage
 
-`--debug` and `--for-ai` are on every command and are mutually exclusive: the first adds log lines, the second drops color and symbols. `-A/--account` takes an account config directory path, and on `launch` and `switch` it also matches on just the directory name. Global state lives under `~/.config/claudex/`, holding the plugin in `global/` and presets in `presets/`.
+`--debug` is on every command and swaps the styled output for timestamped log lines. Color and cursor redraws drop automatically when output is not a terminal, so piping any command gives plain text with no flag. `-A/--account` takes an account config directory path, and on `launch` and `switch` it also matches on just the directory name. Global state lives under `~/.config/claudex/`, holding the plugin in `global/` and presets in `presets/`.
 
 ### configure
 
@@ -133,7 +133,7 @@ The new-or-resume prompt only appears when this project has sessions, and the ac
 | `--session <id>` | Resume that session by id |
 | `--mcp mcps\|connectors\|none` | Skip the MCP picker |
 
-`--new`, `--resume`, and `--session` are mutually exclusive. The MCP modes are `mcps` for MCP servers on, `connectors` to add Claude.ai connectors on top, and `none` for `--strict-mcp-config`. Launch needs an interactive terminal, so `--for-ai` errors.
+`--new`, `--resume`, and `--session` are mutually exclusive. The MCP modes are `mcps` for MCP servers on, `connectors` to add Claude.ai connectors on top, and `none` for `--strict-mcp-config`. Launch hands the session to `claude`, so it errors without an interactive terminal.
 
 ### status
 
@@ -141,9 +141,9 @@ Per account, the 5h session window and the 7d windows as bars with their reset t
 
 ### switch
 
-Moves the current project's session files and history entries out of the account holding them and into another. It needs at least two accounts, and `-A/--account` is required under `--for-ai`.
+Moves the current project's session files and history entries out of the account holding them and into another. It needs at least two accounts, and `-A/--account` is required without an interactive terminal.
 
-The picker lists this project's sessions from every account, under a row that takes all the ones in the account holding the newest. Picking a single session moves only that session, out of whichever account holds it. `--session <id>` names one directly and skips the picker, and `--for-ai` has no picker, so it moves the whole account unless `--session` narrows it.
+The picker lists this project's sessions from every account, under a row that takes all the ones in the account holding the newest. Picking a single session moves only that session, out of whichever account holds it. `--session <id>` names one directly and skips the picker, and without a terminal there is no picker, so it moves the whole account unless `--session` narrows it.
 
 ### oauth-token
 
