@@ -1,6 +1,6 @@
 ---
 name: go-cli-progress
-description: Sequential running/done progress for Go CLI tools - phase, single-operation, multi-step, and check lifecycles plus the in-place progress bar. Use when a command runs a series of steps and should show what it is doing, when clearing terminal lines, or when adding a percentage bar. Triggers on PrintRunning, PrintIndentedSuccess, PrintIndentedError, ClearLines, ClearPreviousLine, PrintProgress, and any command that prints "Running..." then replaces it with a result.
+description: Sequential running/done progress for Go CLI tools - phase, single-operation, multi-step, and check lifecycles plus the in-place progress bar. Use when a command runs a series of steps and should show what it is doing, when clearing terminal lines, or when adding a percentage bar. Triggers on PrintRunning, PrintIndentedSuccess, PrintIndentedError, ClearLines, ClearPreviousLine, PrintProgress, StdoutIsTerminal, and any command that prints "Running..." then replaces it with a result.
 user-invocable: false
 ---
 
@@ -10,22 +10,22 @@ user-invocable: false
 
 These cover work that runs one step after another. A concurrent pipeline over many items uses a job pipeline with an aggregated display instead, because line clearing assumes one writer.
 
-The contract underneath all four: human mode is ephemeral and transient lines are cleared, while AI and debug modes are permanent so a parser or a log keeps the full progression. `ClearLines` and `ClearPreviousLine` are no-ops in those two modes for that reason.
+The contract underneath all four: redrawing is a terminal affordance, so transient lines are cleared only when stdout is a terminal and `--debug` is off. Everywhere else every step still gets announced and nothing is cleared, which leaves a log or a pipe holding the full progression instead of a stream of cursor escapes.
 
-| Behavior | Human | AI | Debug |
+| Behavior | Terminal | Piped | `--debug` |
 |---|---|---|---|
-| Styled icons and colors | yes | no | no |
+| Styled icons and colors | yes | glyphs kept, color stripped | no |
 | `ClearLines` / `ClearPreviousLine` | clears | no-op | no-op |
 | Progress bar | overwrites one line | one new line per tick | one zerolog entry per tick |
 | Everything printed persists | no | yes | yes |
 
+Steps are announced in every mode. What disappears outside a terminal is the redraw, never the fact that a step ran, because a step that failed is the one a log is read for.
+
 ## Line Clearing
 
 ```go
-// ClearLines removes n lines of terminal output.
-// It is a no-op in debug and AI modes so all output persists for logging and parsing.
 func ClearLines(n int) {
-    if GlobalDebugFlag || GlobalForAIFlag {
+    if GlobalDebugFlag || !StdoutIsTerminal {
         return
     }
     for range n {
@@ -34,12 +34,11 @@ func ClearLines(n int) {
 }
 
 func ClearPreviousLine() {
-    if GlobalDebugFlag || GlobalForAIFlag {
-        return
-    }
-    fmt.Print("\033[A\033[2K")
+    ClearLines(1)
 }
 ```
+
+The escape sequences go out through `fmt.Print` rather than a printer, since they are cursor control rather than content and the guard above has already established there is a cursor to control.
 
 The count is always `lineCount + 1`, where the `+1` is the running header itself. Counting only the sub-lines leaves the header stranded above the summary that was meant to replace it.
 
@@ -182,15 +181,15 @@ func PrintProgress(label string, percent int) {
         log.Info().Int("percent", percent).Msg(label)
         return
     }
-    if GlobalForAIFlag {
-        fmt.Printf("[PROGRESS] %s: %d%%\n", label, percent)
+    if !StdoutIsTerminal {
+        lipgloss.Println(fmt.Sprintf("  ↻ %s: %d%%", label, percent))
         return
     }
 
     const barWidth = 10
     filled := barWidth * percent / 100
     bar := strings.Repeat("⣿", filled) + strings.Repeat("⣀", barWidth-filled)
-    fmt.Println(infoStyle.Render(fmt.Sprintf("  ↻ %s: %s %d%%", label, bar, percent)))
+    lipgloss.Println(infoStyle.Render(fmt.Sprintf("  ↻ %s: %s %d%%", label, bar, percent)))
 }
 ```
 
@@ -242,4 +241,4 @@ A progress indicator inside a phase counts as 1 toward `lineCount`, not one per 
 
 One second is the default tick. Faster suits a short task and slower a long one, and anything under 250ms costs more in redraw than it conveys.
 
-AI mode prints every tick as a new line and never clears, which is deliberate: an agent reading the output sees the full progression rather than one final number.
+A piped stream gets one plain line per tick and never a clear, which is deliberate: whoever reads the output later sees the full progression rather than one final number.

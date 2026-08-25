@@ -144,7 +144,7 @@ These are always fine:
 |---|---|---|
 | `spf13/cobra` | CLI framework | any with commands |
 | `rs/zerolog` | structured logging | CLI Only, CLI + Web |
-| `charm.land/bubbletea/v2`, `charm.land/lipgloss/v2`, `charm.land/bubbles/v2` | TUI | CLI Only, CLI + Web |
+| `charm.land/bubbletea/v2`, `charm.land/lipgloss/v2`, `charm.land/bubbles/v2`, `github.com/charmbracelet/x/term` | TUI and terminal detection | CLI Only, CLI + Web |
 | `gorilla/websocket` | WebSocket | any |
 | `goccy/go-yaml` | YAML, since `yaml.v2` is deprecated | any |
 

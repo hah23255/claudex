@@ -33,7 +33,7 @@ Not every provider implements device authorization. When it does not, omit `logi
 |---|---|
 | `u.PrintInfo` | instructions and status: "Opening browser...", "Waiting for authorization..." |
 | `u.PrintGeneric` | data the user copies: URLs, user codes |
-| `u.PromptInput` | the manual-mode paste, which reads from the pipe under `--for-ai` |
+| `u.PromptInput` | the manual-mode paste, which needs a terminal and returns `ErrNoTerminal` without one |
 | `u.PrintFatal`, `u.PrintSuccess` | the command layer only |
 
 URLs and codes go through `PrintGeneric` so they arrive unstyled and unprefixed, which is what makes them safe to copy out of a terminal or a pipe.
