@@ -46,7 +46,7 @@ The expected pattern for every check lives in those skills. This file states wha
 | Index fallback | Read the pattern the index handler is registered on |
 | Headless variant | For a Headless API Service, check that the embed and index pieces are absent rather than present and unused |
 | Middleware | Grep for wrapper functions and read where they are applied |
-| Server logging | Grep `internal/server/` for the logging calls used |
+| Server logging | Grep `internal/server/` for the logging calls used; zerolog in every project type, never the standard library logger |
 
 ## Category 3: OAuth
 

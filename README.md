@@ -48,7 +48,7 @@ make build
 
 ## Usage
 
-`--debug` is on every command and swaps the styled output for timestamped log lines. Color and cursor redraws drop automatically when output is not a terminal, so piping any command gives plain text with no flag. `-A/--account` takes an account config directory path, and on `launch` and `switch` it also matches on just the directory name. Global state lives under `~/.config/claudex/`, holding the plugin in `global/` and presets in `presets/`.
+`--debug` is on every command and swaps the styled output for zerolog: a timestamped console line in a terminal, and JSON when stdout is not one. Color and cursor redraws drop automatically off a terminal too, so piping any command gives plain text with no flag. `-A/--account` takes an account config directory path, and on `launch` and `switch` it also matches on just the directory name. Global state lives under `~/.config/claudex/`, holding the plugin in `global/` and presets in `presets/`.
 
 ### configure
 

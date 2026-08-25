@@ -1,6 +1,6 @@
 ---
 name: go-project-layout
-description: The canonical Go project taxonomy, directory layout, logging discipline, and config loading. Use when starting a Go project, adding a package or directory, deciding where a file belongs, choosing between zerolog and the standard log package, or wiring config. Triggers on go.mod, main.go, cmd/, internal/, pkg/, utils/, internal/server/static/, and on any question of whether a project is CLI Only, Web Only, CLI + Web, a Headless API Service, or a Library.
+description: The canonical Go project taxonomy, directory layout, logging discipline, the config directory, and config loading. Use when starting a Go project, adding a package or directory, deciding where a file belongs, wiring zerolog, or deciding where a tool keeps its config and credentials. Triggers on go.mod, main.go, cmd/, internal/, pkg/, utils/, internal/server/static/, setupLogs, ConsoleWriter, ~/.config, and on any question of whether a project is CLI Only, Web Only, CLI + Web, a Headless API Service, or a Library.
 user-invocable: false
 ---
 
@@ -15,9 +15,9 @@ Every other Go convention keys off the project type, so settling the type is the
 | Type | What it is | Defining markers |
 |---|---|---|
 | CLI Only | Terminal tool for users | `cobra`, `utils/`, zerolog, lipgloss/bubbletea/bubbles v2; multi-platform binaries; no Docker |
-| Web Only | Web app served from a Go binary, with no real CLI beyond `serve` | `cobra` with a lone `serve` command, embedded frontend at `internal/server/static/`, standard `log`, Docker, no `utils/` |
-| CLI + Web | A real CLI tool that also serves a web app from one `serve` subcommand | The full CLI Only stack for the command surface, plus `internal/server/static/` and a `serve` command whose server uses standard `log`; Docker |
-| Headless API Service | REST or gRPC backend with no frontend | `internal/server` handlers with no `static/`, standard `log`, Docker, no `utils/`; `cobra` only when it needs more than `serve` |
+| Web Only | Web app served from a Go binary, with no real CLI beyond `serve` | `cobra` with a lone `serve` command, embedded frontend at `internal/server/static/`, Docker, no `utils/` |
+| CLI + Web | A real CLI tool that also serves a web app from one `serve` subcommand | The full CLI Only stack for the command surface, plus `internal/server/static/` and a `serve` command; Docker |
+| Headless API Service | REST or gRPC backend with no frontend | `internal/server` handlers with no `static/`, Docker, no `utils/`; `cobra` only when it needs more than `serve` |
 | Library / Module | Importable package with no entry point | No `main.go`, no `cobra`, no `utils/`; exported packages at the module root or under `pkg/`; consumed via `go get` |
 
 Read the type off the tree before writing anything, because the same file is correct in one type and a defect in another: a `utils/` package belongs in CLI Only and is a defect in Web Only.
@@ -66,8 +66,8 @@ project-root/
 │   ├── assets/logo.png
 │   └── workflows/release.yaml   # docker and binaries
 ├── cmd/
-│   ├── root.go             # no debug, no zerolog, no utils
-│   └── serve.go            # uses log.Printf
+│   ├── root.go             # zerolog, --debug, no utils
+│   └── serve.go            # the one command
 └── internal/
     ├── feature1/
     └── server/
@@ -79,7 +79,7 @@ project-root/
 
 ### CLI + Web
 
-Structurally a CLI Only project with a Web Only server grafted on: the full `utils/` package, zerolog, and the CLI Only `cmd/root.go`, plus an `internal/server/` holding the embedded `static/` frontend reached through a single `serve` command. It ships Docker and multi-platform binaries.
+Structurally a CLI Only project with a Web Only server grafted on: the full `utils/` package and the CLI Only `cmd/root.go`, plus an `internal/server/` holding the embedded `static/` frontend reached through a single `serve` command. It ships Docker and multi-platform binaries.
 
 ```
 project-root/
@@ -88,7 +88,7 @@ project-root/
 ├── Dockerfile
 ├── cmd/
 │   ├── root.go             # zerolog, --debug, utils
-│   ├── serve.go            # the one web command, server logs via log.Printf
+│   ├── serve.go            # the one web command
 │   └── operation.go        # CLI subcommands, full utils/zerolog/TUI stack
 ├── internal/
 │   ├── feature1/
@@ -98,11 +98,11 @@ project-root/
 └── utils/                  # present, the CLI surface uses it
 ```
 
-The two disciplines divide on command boundaries and never mix inside one command, because a user running `serve` reads a server log and a user running `sync` reads styled terminal output, and one binary emitting both formats from one command is unreadable.
+What divides on command boundaries is the `utils` printers, which the CLI commands use and `serve` does not. Logging does not divide: every command in the binary writes through the same logger in the same format.
 
 ### Headless API Service
 
-A Web Only project minus the frontend: standard `log`, no `utils/`, Dockerfile and Docker in CI, and `cobra` only when the service needs subcommands beyond `serve`.
+A Web Only project minus the frontend: no `utils/`, Dockerfile and Docker in CI, and `cobra` only when the service needs subcommands beyond `serve`.
 
 ```
 project-root/
@@ -143,36 +143,40 @@ Frontend assets live at `internal/server/static/` so a single `//go:embed static
 
 ## Logging
 
-### CLI Only, and the command surface of CLI + Web
-
-zerolog behind `--debug`, and the `utils` printers otherwise. Logs stay hidden in normal use because a user running a tool wants the result, not a trace of how it was produced.
+One library, zerolog, in every project type that has an entry point, and one format rule underneath it: a `ConsoleWriter` when stdout is a terminal, and zerolog's own JSON otherwise. The destination decides, so a person at a terminal reads the pretty form and a container log collector reads structured JSON, with neither being a mode anyone selects.
 
 ```go
 func setupLogs() {
     zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-    output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.DateTime, NoColor: !utils.StdoutIsTerminal}
-    log.Logger = zerolog.New(output).With().Timestamp().Logger()
+    var out io.Writer = os.Stdout
+    if term.IsTerminal(os.Stdout.Fd()) {
+        out = zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.DateTime}
+    }
+    log.Logger = zerolog.New(out).With().Timestamp().Logger()
     zerolog.SetGlobalLevel(zerolog.InfoLevel)
     if debugFlag {
         zerolog.SetGlobalLevel(zerolog.DebugLevel)
-        utils.GlobalDebugFlag = true
     }
 }
 ```
 
-Log messages stay generic and carry no package-name field, because most logs originate in the shared `utils` package where a package field would be the same value every time.
+A CLI Only project reads the terminal check through `utils.StdoutIsTerminal`, which it already has. A Web Only or Headless API Service project calls `term.IsTerminal` directly, having no `utils/` to hold it, and sets `utils.GlobalDebugFlag` in the debug branch only when the package exists.
 
-### Web Only, Headless API Service, and the server layer of CLI + Web
+`--debug` sits on the root command of every project type and moves the level from info to debug. Nothing else rides on it.
 
-The standard `log` package with manual level prefixes, and `log.Fatalf` for errors that end the process. These projects have no `utils/` package and no `GlobalDebugFlag`.
+Levels come from the library rather than from the message, so a formatted prefix is never written into the text:
 
 ```go
-log.Printf("INFO Starting on port %d", port)
-log.Printf("ERROR Failed to validate token: %v", err)
-log.Fatalf("ERROR Failed to bind: %v", err)
+log.Info().Str("addr", addr).Msg("starting")
+log.Error().Err(err).Msg("failed to validate token")
+log.Fatal().Err(err).Msg("failed to bind")
 ```
 
-Output is timestamped, sequential, and uncolored, so it survives being piped into a container log collector that strips nothing and interprets nothing.
+`log.Fatal()` exits after writing, which is the zerolog form of the exit a fatal message implies.
+
+What a CLI adds on top is the `utils` printers, not a second logger. Those are what a user reads in normal use, and zerolog is what they see when they pass `--debug`, so the two never describe the same event twice.
+
+In a CLI the log messages stay generic and carry no package-name field, because most of them originate in the shared `utils` package where the field would be the same value every time.
 
 ## Config
 

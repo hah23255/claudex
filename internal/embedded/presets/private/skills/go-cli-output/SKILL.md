@@ -8,14 +8,14 @@ user-invocable: false
 
 **Every line a CLI Only tool prints goes through `utils`, which renders it two ways depending on whether `--debug` is set, and drops its own color whenever stdout is not a terminal.**
 
-Web Only and Headless API Service projects have no `utils/` package and print with `log.Printf` instead.
+Web Only and Headless API Service projects have no `utils/` package. They log through the same zerolog setup and print nothing else, since a container's stdout has no reader to style output for.
 
 ## The Two Tiers
 
 | Tier | Flag | Output |
 |---|---|---|
 | Normal (default) | none | styled ANSI via lipgloss, transient lines cleared |
-| Debug | `--debug` | structured zerolog with timestamps and full error detail, nothing cleared |
+| Debug | `--debug` | zerolog with timestamps and full error detail, console on a terminal and JSON otherwise, nothing cleared |
 
 There is no third tier for a machine reading the output, and a flag that asks for one is not added. An agent invoking the tool passes `--debug` and gets more than a plain-text mode could carry: every step announced, every wrapped error intact, and nothing redrawn over.
 
@@ -23,14 +23,14 @@ There is no third tier for a machine reading the output, and a flag that asks fo
 
 Plain text is a property of the destination rather than a mode the caller selects. Every printer writes through `lipgloss.Println`, whose writer is `colorprofile.NewWriter(os.Stdout, os.Environ())`; that resolves to `NoTTY` when stdout is not a terminal and strips every escape sequence on the way out. Piping the tool anywhere produces plain text with nothing passed and nothing remembered.
 
-zerolog takes `NoColor` from the same check, so the debug tier behaves identically:
+zerolog answers the same check one level up, choosing the writer rather than decolorizing one: `ConsoleWriter` on a terminal, and its own JSON otherwise.
 
 ```go
-output := zerolog.ConsoleWriter{
-    Out:        os.Stdout,
-    TimeFormat: time.DateTime,
-    NoColor:    !utils.StdoutIsTerminal,
+var out io.Writer = os.Stdout
+if StdoutIsTerminal {
+    out = zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.DateTime}
 }
+log.Logger = zerolog.New(out).With().Timestamp().Logger()
 ```
 
 Ephemeral output is a terminal affordance and nothing else. `ClearLines` and the in-place progress bar are inert under `--debug` and whenever stdout is not a terminal, so a log or a pipe keeps the full progression rather than a stream of cursor escapes.
