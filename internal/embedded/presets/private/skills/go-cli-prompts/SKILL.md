@@ -1,74 +1,71 @@
 ---
 name: go-cli-prompts
-description: Interactive input for Go CLI tools - the utils prompt helpers and their piped-stdin equivalents under --for-ai. Use when a command needs to ask the user something, when building or changing utils/input.go, or when adding a password, free-text, or selection prompt. Triggers on PromptInput, PromptPassword, PromptTextArea, PromptSelect, PromptMultiSelect, ReadPipedLine, ReadPipedInput, bubbletea textinput, textarea, and stdin piping into a CLI.
+description: Interactive input for Go CLI tools - when a prompt is the right channel at all, the utils prompt helpers, and the ErrNoTerminal contract that keeps every command scriptable. Use when a command needs to ask the user something, when building or changing utils/input.go, or when adding a password, free-text, or selection prompt. Triggers on PromptInput, PromptPassword, PromptTextArea, PromptSelect, PromptMultiSelect, ErrNoTerminal, StdinIsTerminal, bubbletea textinput, and textarea.
 user-invocable: false
 ---
 
 # Go CLI Prompts
 
-**Everything a CLI Only tool asks the user goes through a `utils` prompt helper, which is a bubbletea TUI for a human and a stdin read under `--for-ai`.**
+**A prompt is a convenience for someone at a keyboard, never the only way to supply a value.**
 
-Branching inside the helper rather than at each call site is what keeps every command scriptable without each command remembering to handle a pipe.
+Interactive input is the exception rather than the default channel. Reach for it only when the value is unreasonable to type on a command line, such as a choice among options the user has not seen yet, or a secret that would otherwise sit in shell history. Everything else is a flag.
 
+## The Rule
+
+Every prompt has a flag, or a positional argument, that supplies the same value and skips it. Without one the command is unusable from a script, a cron job, or an agent, and no amount of terminal polish makes up for that.
+
+The prompt then fires only when the value is still missing:
+
+```go
+target := flags.account
+if target == "" {
+    idx, err := u.PromptSelect("Account", labels)
+    // ...
+}
 ```
-echo "my input" | toolname command --for-ai
-echo -e "username\npassword" | toolname login --for-ai
+
+## No Terminal
+
+Every helper checks stdin before opening a bubbletea program and returns `ErrNoTerminal` when there is not one, so a piped or backgrounded invocation fails immediately instead of hanging on a read nobody will satisfy.
+
+```go
+var ErrNoTerminal = errors.New("no interactive terminal")
+
+func PromptSelect(label string, options []string) (int, error) {
+    if !StdinIsTerminal {
+        return -1, ErrNoTerminal
+    }
+    // ...
+}
 ```
 
-| Helper | Human | AI (`--for-ai`) | Returns |
-|---|---|---|---|
-| `PromptInput(prompt, placeholder)` | single-line textinput | one line from stdin | `(string, error)` |
-| `PromptPassword(prompt)` | masked textinput | one line from stdin | `(string, error)` |
-| `PromptTextArea(prompt, placeholder)` | multi-line textarea, Ctrl+D submits | all remaining stdin | `(string, error)` |
-| `PromptSelect(label, options)` | single-choice list | a 1-based index from stdin | `(int, error)`, `-1` on cancel |
-| `PromptMultiSelect(label, options)` | multi-choice list, space toggles | comma-separated indices or `none` | `(map[int]bool, error)`, `nil` on cancel |
+The command decides what that means. A prompt with a documented default takes it; a prompt without one fails naming the flag that would have supplied the answer, which is the whole message the caller needs:
+
+```go
+picked, err := u.PromptMultiSelect("Presets", labels)
+if errors.Is(err, u.ErrNoTerminal) {
+    u.PrintFatal("apply-preset needs a preset name when there is no interactive terminal", nil)
+}
+if err != nil {
+    u.PrintFatal("TUI error", err)
+}
+```
+
+A command that cannot work without a terminal at all, because it hands the session to another program, says so once at the top of `Run` rather than at each prompt.
+
+## The Helpers
+
+| Helper | Behavior | Returns |
+|---|---|---|
+| `PromptInput(prompt, placeholder)` | single-line textinput | `(string, error)` |
+| `PromptPassword(prompt)` | masked textinput | `(string, error)` |
+| `PromptTextArea(prompt, placeholder)` | multi-line textarea, Ctrl+D submits | `(string, error)` |
+| `PromptSelect(label, options)` | single-choice list | `(int, error)`, `-1` on cancel |
+| `PromptMultiSelect(label, options)` | multi-choice list, space toggles | `(map[int]bool, error)`, `nil` on cancel |
 
 Every cancel path is a clean no-op abort: `idx < 0` from `PromptSelect` and a `nil` map from `PromptMultiSelect` mean the user pressed Escape, and treating that as an empty selection would run the operation they just declined.
 
-A password returned from `PromptPassword` never reaches a `Print` function, because the AI and debug tiers write it somewhere durable.
-
-## Reading Piped Input
-
-One scanner is shared across calls so that sequential prompts each consume the next line. A fresh `bufio.Scanner` per call would drain the whole pipe on the first prompt and leave the rest empty.
-
-```go
-var stdinScanner *bufio.Scanner
-
-func getStdinScanner() *bufio.Scanner {
-    if stdinScanner == nil {
-        stdinScanner = bufio.NewScanner(os.Stdin)
-    }
-    return stdinScanner
-}
-
-// ReadPipedLine returns one line, or "" when stdin is a terminal or exhausted.
-func ReadPipedLine() string {
-    fi, err := os.Stdin.Stat()
-    if err != nil || fi.Mode()&os.ModeCharDevice != 0 {
-        return ""
-    }
-    if s := getStdinScanner(); s.Scan() {
-        return strings.TrimSpace(s.Text())
-    }
-    return ""
-}
-
-// ReadPipedInput drains the rest of stdin as one string.
-func ReadPipedInput() string {
-    fi, err := os.Stdin.Stat()
-    if err != nil || fi.Mode()&os.ModeCharDevice != 0 {
-        return ""
-    }
-    var lines []string
-    s := getStdinScanner()
-    for s.Scan() {
-        lines = append(lines, s.Text())
-    }
-    return strings.TrimSpace(strings.Join(lines, "\n"))
-}
-```
-
-The `ModeCharDevice` check distinguishes a pipe from a terminal, so a tool run with `--for-ai` but no pipe returns empty rather than blocking forever on a read nobody will satisfy.
+A password returned from `PromptPassword` never reaches a `Print` function, because the debug tier writes it into a log that outlives the session.
 
 ## Single-Line Input
 
@@ -110,8 +107,8 @@ func (m inputModel) View() tea.View {
 }
 
 func PromptInput(prompt, placeholder string) (string, error) {
-    if GlobalForAIFlag {
-        return ReadPipedLine(), nil
+    if !StdinIsTerminal {
+        return "", ErrNoTerminal
     }
     ti := textinput.New()
     ti.Placeholder = placeholder
@@ -126,8 +123,8 @@ func PromptInput(prompt, placeholder string) (string, error) {
 }
 
 func PromptPassword(prompt string) (string, error) {
-    if GlobalForAIFlag {
-        return ReadPipedLine(), nil
+    if !StdinIsTerminal {
+        return "", ErrNoTerminal
     }
     ti := textinput.New()
     ti.Placeholder = "••••••••"
@@ -145,6 +142,8 @@ func PromptPassword(prompt string) (string, error) {
 
 `PromptPassword` skips the `TrimSpace` that `PromptInput` applies, since a trailing space can be part of a password and silently removing it produces an authentication failure nobody can explain.
 
+A secret also arrives from an environment variable or the config directory, and a prompt is the fallback for a first run rather than the only path.
+
 ## Multi-Line Input
 
 `PromptTextArea` submits on Ctrl+D rather than Enter, because Enter has to stay available for the newlines that make the field multi-line.
@@ -158,8 +157,8 @@ func (m textAreaModel) View() tea.View {
 }
 
 func PromptTextArea(prompt, placeholder string) (string, error) {
-    if GlobalForAIFlag {
-        return ReadPipedInput(), nil
+    if !StdinIsTerminal {
+        return "", ErrNoTerminal
     }
     PrintInfo(prompt)
 
@@ -176,6 +175,8 @@ func PromptTextArea(prompt, placeholder string) (string, error) {
 ```
 
 The `Update` method mirrors `inputModel`, matching `"ctrl+d"` for submit instead of `"enter"`.
+
+A body of text that a script would supply belongs in a `--file` flag rather than in this prompt, since a here-doc piped at a TUI is not input the program can read.
 
 ## Selection
 
@@ -222,18 +223,9 @@ func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 ```go
 func PromptSelect(label string, options []string) (int, error) {
-    if GlobalForAIFlag {
-        line := ReadPipedLine()
-        if line == "" {
-            return -1, nil
-        }
-        n, err := strconv.Atoi(line)
-        if err != nil || n < 1 || n > len(options) {
-            return -1, fmt.Errorf("expected a number between 1 and %d, got %q", len(options), line)
-        }
-        return n - 1, nil // stdin indices are 1-based for the human writing the pipe
+    if !StdinIsTerminal {
+        return -1, ErrNoTerminal
     }
-
     final, err := tea.NewProgram(selectModel{label: label, options: options}).Run()
     if err != nil {
         return -1, err
@@ -246,22 +238,9 @@ func PromptSelect(label string, options []string) (int, error) {
 }
 
 func PromptMultiSelect(label string, options []string) (map[int]bool, error) {
-    if GlobalForAIFlag {
-        line := ReadPipedLine()
-        if line == "" || line == "none" {
-            return map[int]bool{}, nil // an explicit empty choice, distinct from cancel
-        }
-        chosen := map[int]bool{}
-        for part := range strings.SplitSeq(line, ",") {
-            n, err := strconv.Atoi(strings.TrimSpace(part))
-            if err != nil || n < 1 || n > len(options) {
-                return nil, fmt.Errorf("expected comma-separated numbers between 1 and %d, got %q", len(options), line)
-            }
-            chosen[n-1] = true
-        }
-        return chosen, nil
+    if !StdinIsTerminal {
+        return nil, ErrNoTerminal
     }
-
     final, err := tea.NewProgram(selectModel{
         label: label, options: options, chosen: map[int]bool{}, multi: true,
     }).Run()
@@ -276,6 +255,4 @@ func PromptMultiSelect(label string, options []string) (map[int]bool, error) {
 }
 ```
 
-Stdin indices are 1-based while the returned index is 0-based, because the person writing `echo "2" | tool cmd --for-ai` is counting the options they can see on screen.
-
-`none` and an empty map are a deliberate choice of nothing, while `nil` is a cancel. Collapsing the two would make an aborted prompt indistinguishable from a user who selected no options on purpose.
+The flag behind a selector names the option rather than its position, because a positional index shifts the moment the option list grows and a script written against it then picks the wrong one.

@@ -36,7 +36,7 @@ project-root/
 │   ├── assets/logo.png
 │   └── workflows/release.yaml   # binaries only
 ├── cmd/
-│   ├── root.go             # zerolog, --debug, --for-ai, utils
+│   ├── root.go             # zerolog, --debug, utils
 │   ├── command.go          # simple commands
 │   └── feature-cmd/        # grouped subcommands get their own package
 │       ├── parent.go
@@ -66,7 +66,7 @@ project-root/
 │   ├── assets/logo.png
 │   └── workflows/release.yaml   # docker and binaries
 ├── cmd/
-│   ├── root.go             # no debug/for-ai, no zerolog, no utils
+│   ├── root.go             # no debug, no zerolog, no utils
 │   └── serve.go            # uses log.Printf
 └── internal/
     ├── feature1/
@@ -87,7 +87,7 @@ project-root/
 ├── Makefile                # CLI Only targets plus docker targets and assets
 ├── Dockerfile
 ├── cmd/
-│   ├── root.go             # zerolog, --debug, --for-ai, utils
+│   ├── root.go             # zerolog, --debug, utils
 │   ├── serve.go            # the one web command, server logs via log.Printf
 │   └── operation.go        # CLI subcommands, full utils/zerolog/TUI stack
 ├── internal/
@@ -150,7 +150,7 @@ zerolog behind `--debug`, and the `utils` printers otherwise. Logs stay hidden i
 ```go
 func setupLogs() {
     zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-    output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.DateTime, NoColor: false}
+    output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.DateTime, NoColor: !utils.StdoutIsTerminal}
     log.Logger = zerolog.New(output).With().Timestamp().Logger()
     zerolog.SetGlobalLevel(zerolog.InfoLevel)
     if debugFlag {
@@ -176,9 +176,31 @@ Output is timestamped, sequential, and uncolored, so it survives being piped int
 
 ## Config
 
-Cobra flags alone cover most projects. Reach for the layered form only when a project genuinely needs a config file, because a hierarchy nobody populates is four lookups to answer one question.
+Cobra flags alone cover most projects. Reach for a config file only when a project genuinely needs one, because a hierarchy nobody populates is four lookups to answer one question.
 
-The layered form resolves in this order, highest first: environment variables, then CLI flags, then a YAML file passed via `--config`, then built-in defaults. Environment variables win so a deployment can override a baked-in flag without rebuilding the image.
+### The config directory
+
+A CLI tool that persists anything puts it at `~/.config/[APP_NAME]/`, hardcoded, with no `--config-dir` flag and no XDG lookup. One path means a user, a backup script, and a support answer all name the same place.
+
+```go
+func configDir() string {
+    home, err := os.UserHomeDir()
+    if err != nil {
+        u.PrintFatal("cannot resolve home directory", err)
+    }
+    return filepath.Join(home, ".config", "[APP_NAME]")
+}
+```
+
+The directory is created at `0700` and every file inside it at `0600`, because what lives there is credentials: OAuth tokens, session cookies, API keys, and the config file that may hold any of them. A subdirectory per concern keeps them separable, and nothing else in the user's home belongs to the tool.
+
+### Precedence
+
+Highest first: an explicit flag, then the environment, then the config file, then the built-in default. The flag wins because it is the most specific thing the caller said in this invocation, and an environment variable reaches the command as that flag's default value rather than as an override applied afterwards, which is what keeps `--help` honest about what will be used.
+
+A variable the tool owns is namespaced with the tool's name, so `[APP_NAME]_TOKEN` rather than `TOKEN`. A variable belonging to another tool keeps that tool's name, since renaming `GITHUB_TOKEN` only means the user has to set it twice.
+
+### Where the loading lives
 
 | Project type | Where config loading lives |
 |---|---|
@@ -191,18 +213,21 @@ The loader returns a struct rather than exposing a global, so a caller can const
 ```go
 func LoadConfig(path string) (*Config, error) {
     cfg := &Config{Server: ServerConfig{Port: 8080, Host: "0.0.0.0"}}
-    if path != "" {
-        if data, err := os.ReadFile(path); err == nil {
-            if err := yaml.Unmarshal(data, cfg); err != nil {
-                return nil, err
-            }
-        }
+    if path == "" {
+        path = filepath.Join(configDir(), "config.yaml")
     }
-    if host := os.Getenv("APP_HOST"); host != "" {
-        cfg.Server.Host = host
+    data, err := os.ReadFile(path)
+    if errors.Is(err, os.ErrNotExist) {
+        return cfg, nil
+    }
+    if err != nil {
+        return nil, err
+    }
+    if err := yaml.Unmarshal(data, cfg); err != nil {
+        return nil, err
     }
     return cfg, nil
 }
 ```
 
-A missing config file falls back to defaults instead of erroring, because `--config` naming a path that does not exist yet is a normal first run.
+A missing config file falls back to defaults instead of erroring, because a first run has not written one yet. A file that exists and does not parse is an error, since silently ignoring it hands the user defaults they did not ask for and no way to tell.

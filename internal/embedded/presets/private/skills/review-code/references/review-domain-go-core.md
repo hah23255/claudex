@@ -53,7 +53,10 @@ Flag only the patterns below. A classic `for i := 0; i < n; i++` loop, a manual 
 | Level prefixes | Grep `log.Printf` calls for a leading level token |
 | No cross-contamination | In a hybrid, grep `internal/server/` for `utils` imports and grep `cmd/` for the ones that should be there |
 | Config loader location | Glob for `utils/config.go` or a config package under `internal/`, then compare against the type |
-| Config precedence | Read the loader and trace the order in which each source is applied |
+| Config precedence | Read the loader and trace the order in which each source is applied, expecting flag, then environment, then file, then default |
+| Config directory | Grep for `os.UserHomeDir` and `UserConfigDir`; check the path resolves to `~/.config/<app>` and that no flag relocates it |
+| Credential file modes | Grep for `MkdirAll` and `WriteFile` on that directory for `0700` and `0600` |
+| Environment variable naming | Grep `os.Getenv` calls; a variable the tool owns is prefixed with the tool's name |
 
 ## Category 5: Comments
 

@@ -1,6 +1,6 @@
 ---
 name: go-cli-commands
-description: Cobra command wiring for Go CLI tools - root command, simple commands, subcommand packages, and flags. Use when scaffolding main.go or cmd/root.go, adding a command or subcommand, registering flags, or setting up --debug and --for-ai. Triggers on cobra.Command, rootCmd, AddCommand, PersistentFlags, StringVarP, MarkFlagRequired, MarkFlagsMutuallyExclusive, cmd/ files, and AppVersion ldflags injection.
+description: Cobra command wiring for Go CLI tools - root command, simple commands, subcommand packages, the three input channels, and flag conventions. Use when scaffolding main.go or cmd/root.go, adding a command or subcommand, registering flags, deciding whether a value should be a flag or a prompt, or setting up --debug. Triggers on cobra.Command, rootCmd, AddCommand, PersistentFlags, BoolVar, StringVarP, MarkFlagRequired, MarkFlagsMutuallyExclusive, cmd/ files, and AppVersion ldflags injection.
 user-invocable: false
 ---
 
@@ -13,7 +13,7 @@ CLI Only projects and Web Only projects use different roots, and a CLI + Web hyb
 | Aspect | CLI Only | Web Only |
 |---|---|---|
 | Imports | zerolog, utils, subcommand packages | cobra and subcommand packages only |
-| Global flags | `--debug` and `--for-ai`, mutually exclusive | none |
+| Global flags | `--debug` | none |
 | Logging setup | `setupLogs()` via `cobra.OnInitialize` | none, the standard `log` package needs no setup |
 | Output | `utils.Print*` | `log.Printf` and `log.Fatalf` |
 
@@ -54,7 +54,6 @@ import (
 var AppVersion = "dev-build" // set at build time via ldflags
 
 var debugFlag bool
-var forAIFlag bool
 
 var rootCmd = &cobra.Command{
     Use:               "appname",
@@ -72,16 +71,12 @@ func Execute() {
 
 func setupLogs() {
     zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-    output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.DateTime, NoColor: false}
+    output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.DateTime, NoColor: !utils.StdoutIsTerminal}
     log.Logger = zerolog.New(output).With().Timestamp().Logger()
     zerolog.SetGlobalLevel(zerolog.InfoLevel)
     if debugFlag {
         zerolog.SetGlobalLevel(zerolog.DebugLevel)
         utils.GlobalDebugFlag = true
-    }
-    if forAIFlag {
-        utils.GlobalForAIFlag = true
-        zerolog.SetGlobalLevel(zerolog.Disabled)
     }
 }
 
@@ -89,8 +84,6 @@ func init() {
     rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
 
     rootCmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Enable debug logging")
-    rootCmd.PersistentFlags().BoolVar(&forAIFlag, "for-ai", false, "AI-friendly output (plain text, piped input)")
-    rootCmd.MarkFlagsMutuallyExclusive("debug", "for-ai")
 
     cobra.OnInitialize(setupLogs)
 
@@ -137,7 +130,7 @@ func init() {
 }
 ```
 
-No `--debug`, no `--for-ai`, no zerolog, and no `utils` import, since a containerized server has one output format and adding a second one only splits its logs.
+No `--debug`, no zerolog, and no `utils` import, since a containerized server has one output format and adding a second one only splits its logs.
 
 ## Simple Command
 
@@ -252,17 +245,36 @@ func init() {
 }
 ```
 
+## Input Channels
+
+Three channels carry a value into a command, and which one a given value uses is a decision rather than a preference.
+
+| Channel | Carries | Where it lives |
+|---|---|---|
+| Config and environment | credentials, endpoints, anything set once and reused | `~/.config/[APP_NAME]/`, and `[APP_NAME]_*` variables |
+| Flags | everything else a single run needs | `init()` on the command that reads them |
+| Prompts | a choice among options the user has not seen yet, or a secret that would land in shell history | a `utils` prompt helper |
+
+Flags are the default channel. A prompt is added only when a flag cannot reasonably carry the value, and it always has a flag beside it supplying the same answer, so the command still runs from a script.
+
+Precedence, highest first: an explicit flag, then the environment, then the config file, then the built-in default. The flag wins because it is the most specific thing the caller said in this invocation.
+
 ## Flags
 
 Flags are registered in `init()`, one call per flag, next to the command they belong to.
 
+A boolean flag takes a long name and no shorthand. A single letter standing for a switch abbreviates nothing the reader can recover, and it collides with the next switch somebody adds. A flag that takes a value may have a shorthand, because the value sitting beside it already says what it is.
+
 ```go
+cmd.Flags().BoolVar(&flags.all, "all", false, "Include all items")
+cmd.Flags().BoolVar(&flags.force, "force", false, "Overwrite an existing file")
 cmd.Flags().StringVarP(&flags.name, "name", "n", "default", "Description")
 cmd.Flags().IntVarP(&flags.count, "count", "c", 10, "Number of items")
-cmd.Flags().BoolVarP(&flags.all, "all", "a", false, "Include all items")
 cmd.Flags().StringSliceVarP(&flags.tags, "tag", "t", []string{}, "Tags (repeatable)")
 cmd.Flags().DurationVarP(&flags.timeout, "timeout", "T", 30*time.Second, "Request timeout")
 ```
+
+A flag registers at the level that reads it. `PersistentFlags` on the root is for what the whole tree honors, which in practice is `--debug` and nothing else; `PersistentFlags` on a parent command covers that group; everything else is `Flags()` on the command itself. A flag registered a level too high appears in the help of every command that ignores it.
 
 `MarkFlagRequired` states a requirement Cobra enforces before `Run` is reached, which produces a usage message rather than a nil dereference:
 
@@ -271,7 +283,7 @@ cmd.Flags().StringVarP(&flags.input, "input", "i", "", "Input file (required)")
 cmd.MarkFlagRequired("input")
 ```
 
-An environment variable supplies a default rather than being read inside `Run`, so `--help` shows the value the command will actually use:
+An environment variable supplies a default rather than being read inside `Run`, which is what puts the flag above it in precedence and makes `--help` show the value the command will actually use. A variable the tool owns is namespaced with the tool's name; one belonging to another tool keeps that tool's name.
 
 ```go
 defaultToken := os.Getenv("GITHUB_TOKEN")

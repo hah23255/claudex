@@ -43,7 +43,7 @@ Rules in effect (CLI Only, new command):
 - Comments: the comment rules in AGENTS.md (CLAUDE.md if you are Claude), quoted not summarized
 - Output through the utils printers, never fmt.Println
 - zerolog only behind --debug; utils printers otherwise
-- Tables via utils.PrintTable, honoring the --for-ai markdown path
+- Boolean flags carry no shorthand; every prompt has a flag supplying the same value
 - New command file under cmd/, registered in root.go init()
 - Flags grouped in a per-command struct, registered in init()
 - Scope: only the files this task names; nothing leaves the working directory
@@ -86,8 +86,8 @@ The LSP is already wired into every session for Go, Python, TypeScript, and Java
 | Task touches | Load |
 |---|---|
 | Any Go code | `go-project-layout`, `go-idioms` |
-| Cobra root, commands, subcommands, flags | `go-cli-commands` |
-| Printing, tables, `--debug` and `--for-ai`, terminal colors | `go-cli-output` |
+| Cobra root, commands, subcommands, flags, input channels | `go-cli-commands` |
+| Printing, tables, `--debug`, terminal colors | `go-cli-output` |
 | Interactive prompts, passwords, selection lists | `go-cli-prompts` |
 | Running/done progress, phases, progress bars | `go-cli-progress` |
 | `internal/` package structure, error boundaries, storage | `go-package-architecture` |
