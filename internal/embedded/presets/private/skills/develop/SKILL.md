@@ -69,6 +69,18 @@ Run the real artifact before calling the work done, and say what was run. A buil
 
 Scope the run to what changed: a command that was touched gets invoked, a page that was edited gets loaded, and a package with no entry point of its own is exercised through its caller.
 
+## Language servers
+
+The LSP is already wired into every session for Go, Python, TypeScript, and JavaScript, so a language server is used by calling it and never by installing anything. A plugin, an MCP server, or a dependency is never proposed to obtain one.
+
+| Extension | Server |
+|---|---|
+| `.go` | `gopls` |
+| `.py`, `.pyi` | `pyright-langserver` |
+| `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs` | `typescript-language-server` |
+
+`goToDefinition`, `findReferences`, `goToImplementation`, `hover`, `documentSymbol`, and `workspaceSymbol` resolve a symbol rather than matching a string, which is what makes them better than `rg` for tracing a definition or every call site before changing one. `rg` and `grep` stay the tool for plain text and for a language no server covers.
+
 ## Skill Map
 
 | Task touches | Load |

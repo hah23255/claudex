@@ -23,7 +23,8 @@
 - Do not weigh migration or backward compatibility until a real existing consumer is confirmed or the user asks for it, because compatibility with a consumer that does not exist is machinery nobody will ever exercise.
 - A review produces findings, not fixes. Each finding carries `file:line`, a severity, and what to do about it, and nothing is changed until the user asks for it. A finding changes behavior, breaks a build, or opens a hole; style, naming, and hypotheticals are not findings. The one exception is a self-review of the diff you just wrote, where a small deviation is fixed in place.
 - When reviewing code, treat the code as the primary surface depicting the implementation. Source code has a higher priority than code comments, as code comments could be outdated or inaccurate.
-- When reviewing code, prefer the LSP for definition jumping and reference tracing over text search, because it resolves symbols rather than matching strings. Only use the pre-installed language servers directly as gopls (installed via go), pyright (installed via node), and typescript-language-server (installed via node). Fall back to `rg` and/or `grep` when no server covers the language.
+- When reviewing or navigating code, prefer the LSP over text search for definition jumping and reference tracing, because it resolves symbols rather than matching strings. Fall back to `rg` and/or `grep` when no server covers the language.
+- Never propose installing a language server, or adding a Claude Code plugin or an MCP server to obtain one. `gopls`, `pyright-langserver`, and `typescript-language-server` are already installed and wired into every session, so the LSP is called directly.
 - Apply these principles to code you author or substantially rewrite. Details in a file that you are not touching, or that fall outside your current work, stay as they are, because silently modifying someone else's work buries the real change in the diff.
 
 ## Pull Request Principles
