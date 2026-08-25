@@ -12,10 +12,10 @@ CLI Only projects and Web Only projects use different roots, and a CLI + Web hyb
 
 | Aspect | CLI Only | Web Only |
 |---|---|---|
-| Imports | zerolog, utils, subcommand packages | cobra and subcommand packages only |
-| Global flags | `--debug` | none |
-| Logging setup | `setupLogs()` via `cobra.OnInitialize` | none, the standard `log` package needs no setup |
-| Output | `utils.Print*` | `log.Printf` and `log.Fatalf` |
+| Imports | zerolog, utils, subcommand packages | zerolog, cobra, subcommand packages |
+| Global flags | `--debug` | `--debug` |
+| Logging setup | `setupLogs()` via `cobra.OnInitialize`, terminal check through `utils` | `setupLogs()` via `cobra.OnInitialize`, terminal check inline |
+| Output | `utils.Print*` | zerolog only |
 
 Both set `Use`, `Short`, `Version` from the `AppVersion` ldflag, and `CompletionOptions.HiddenDefaultCmd: true`.
 
@@ -103,12 +103,19 @@ package cmd
 
 import (
     "fmt"
+    "io"
     "os"
+    "time"
 
+    "github.com/charmbracelet/x/term"
+    "github.com/rs/zerolog"
+    "github.com/rs/zerolog/log"
     "github.com/spf13/cobra"
 )
 
 var AppVersion = "dev-build"
+
+var debugFlag bool
 
 var rootCmd = &cobra.Command{
     Use:               "appname",
@@ -124,13 +131,28 @@ func Execute() {
     }
 }
 
+func setupLogs() {
+    zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+    var out io.Writer = os.Stdout
+    if term.IsTerminal(os.Stdout.Fd()) {
+        out = zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.DateTime}
+    }
+    log.Logger = zerolog.New(out).With().Timestamp().Logger()
+    zerolog.SetGlobalLevel(zerolog.InfoLevel)
+    if debugFlag {
+        zerolog.SetGlobalLevel(zerolog.DebugLevel)
+    }
+}
+
 func init() {
     rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
+    rootCmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Enable debug logging")
+    cobra.OnInitialize(setupLogs)
     rootCmd.AddCommand(serveCmd)
 }
 ```
 
-No `--debug`, no zerolog, and no `utils` import, since a containerized server has one output format and adding a second one only splits its logs.
+Same logger and same `--debug` as CLI Only, without the `utils` import. What a server has no use for is the printers, since nobody is watching a container's stdout for a styled checkmark.
 
 ## Simple Command
 
@@ -174,7 +196,7 @@ func init() {
 }
 ```
 
-The same command in a Web Only project swaps `u.PrintFatal(msg, err)` for `log.Fatalf("ERROR %s: %v", msg, err)` and `u.PrintInfo` for `log.Printf("INFO ...")`, and drops the `utils` import.
+The same command in a Web Only project swaps `u.PrintFatal(msg, err)` for `log.Fatal().Err(err).Msg(msg)` and `u.PrintInfo` for `log.Info()`, and drops the `utils` import.
 
 ## Run Function Shape
 
@@ -257,7 +279,7 @@ Three channels carry a value into a command, and which one a given value uses is
 
 Flags are the default channel. A prompt is added only when a flag cannot reasonably carry the value, and it always has a flag beside it supplying the same answer, so the command still runs from a script.
 
-Precedence, highest first: an explicit flag, then the environment, then the config file, then the built-in default. The flag wins because it is the most specific thing the caller said in this invocation.
+Precedence, highest first: an explicit flag, then the environment, then the config file, then the built-in default. The flag wins because it is the most specific thing the caller said in this invocation. A value piped in belongs to the flag tier rather than to a tier of its own, since it arrives as that flag's value.
 
 ## Flags
 
@@ -293,5 +315,25 @@ cmd.Flags().StringVarP(&flags.token, "token", "t", defaultToken, "GitHub token (
 `MarkFlagsMutuallyExclusive` rejects contradictory combinations at parse time, which is where the user can still fix them:
 
 ```go
-cmd.MarkFlagsMutuallyExclusive("file", "stdin")
+cmd.MarkFlagsMutuallyExclusive("file", "url")
 ```
+
+## Values from stdin
+
+A flag given the value `-` reads that value from stdin. The flag keeps the name of the thing it carries, so a command taking two of them stays unambiguous and the invocation says where each value came from.
+
+```
+pwmgr add github --password -        # from the pipe
+pwmgr add github --password hunter2  # inline, and now in shell history
+pwmgr add github                     # prompts, and needs a terminal
+```
+
+```bash
+echo "hunter2" | pwmgr add github --password -
+```
+
+A command reads stdin only when a flag said `-`, and never because stdin happens not to be a terminal. Inferring it means a run with stdin on `/dev/null`, closed, or inherited from a scheduler stores an empty value and reports success, which is the failure nobody notices until they need the value back. The sentinel makes that impossible rather than unlikely.
+
+Two flags cannot both be `-` in one invocation, since there is one stream and no way to say where the first value ends. Reject the combination rather than splitting on a blank line.
+
+An inline secret is a convenience that leaks: it lands in shell history and is visible in `ps` output for the life of the process. `-` is the path a script should take, and the help text for a secret-bearing flag says so.

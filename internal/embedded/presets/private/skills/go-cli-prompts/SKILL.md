@@ -1,6 +1,6 @@
 ---
 name: go-cli-prompts
-description: Interactive input for Go CLI tools - when a prompt is the right channel at all, the utils prompt helpers, and the ErrNoTerminal contract that keeps every command scriptable. Use when a command needs to ask the user something, when building or changing utils/input.go, or when adding a password, free-text, or selection prompt. Triggers on PromptInput, PromptPassword, PromptTextArea, PromptSelect, PromptMultiSelect, ErrNoTerminal, StdinIsTerminal, bubbletea textinput, and textarea.
+description: Interactive input for Go CLI tools - when a prompt is the right channel at all, how a value resolves from a flag then stdin then a prompt, the utils prompt helpers, and the ErrNoTerminal contract that keeps every command scriptable. Use when a command needs to ask the user something, when building or changing utils/input.go, when piping a secret into a command, or when adding a password, free-text, or selection prompt. Triggers on PromptInput, PromptPassword, PromptTextArea, PromptSelect, PromptMultiSelect, ReadStdin, ErrNoTerminal, StdinIsTerminal, a flag whose value is -, bubbletea textinput, and textarea.
 user-invocable: false
 ---
 
@@ -14,15 +14,45 @@ Interactive input is the exception rather than the default channel. Reach for it
 
 Every prompt has a flag, or a positional argument, that supplies the same value and skips it. Without one the command is unusable from a script, a cron job, or an agent, and no amount of terminal polish makes up for that.
 
-The prompt then fires only when the value is still missing:
+A value that a prompt could ask for resolves in three steps, and the prompt is the last of them:
+
+| The flag holds | The value comes from |
+|---|---|
+| a value | the flag itself |
+| `-` | stdin, drained by `ReadStdin` |
+| nothing | the prompt |
 
 ```go
-target := flags.account
-if target == "" {
-    idx, err := u.PromptSelect("Account", labels)
-    // ...
+password := addFlags.password
+switch password {
+case "-":
+    piped, err := u.ReadStdin()
+    if err != nil {
+        u.PrintFatal("could not read the password from stdin", err)
+    }
+    password = piped
+case "":
+    entered, err := u.PromptPassword("Password:")
+    if errors.Is(err, u.ErrNoTerminal) {
+        u.PrintFatal("add needs --password, or --password - to read it from stdin", nil)
+    }
+    password = entered
 }
 ```
+
+Reading stdin is what the `-` asked for and never what a missing terminal implies, so a command whose stdin is `/dev/null` or closed fails rather than storing an empty value.
+
+```go
+func ReadStdin() (string, error) {
+    data, err := io.ReadAll(os.Stdin)
+    if err != nil {
+        return "", err
+    }
+    return strings.TrimRight(string(data), "\r\n"), nil
+}
+```
+
+`TrimRight` on the line endings rather than `TrimSpace`, because `echo` appends a newline that is not part of the value while a password may legitimately end in a space.
 
 ## No Terminal
 
@@ -142,7 +172,7 @@ func PromptPassword(prompt string) (string, error) {
 
 `PromptPassword` skips the `TrimSpace` that `PromptInput` applies, since a trailing space can be part of a password and silently removing it produces an authentication failure nobody can explain.
 
-A secret also arrives from an environment variable or the config directory, and a prompt is the fallback for a first run rather than the only path.
+A secret also arrives from an environment variable, the config directory, or a pipe through `--password -`, and a prompt is the fallback for a first run rather than the only path.
 
 ## Multi-Line Input
 
@@ -176,7 +206,7 @@ func PromptTextArea(prompt, placeholder string) (string, error) {
 
 The `Update` method mirrors `inputModel`, matching `"ctrl+d"` for submit instead of `"enter"`.
 
-A body of text that a script would supply belongs in a `--file` flag rather than in this prompt, since a here-doc piped at a TUI is not input the program can read.
+A body of text that a script would supply comes through `--body -` or a `--file` flag rather than through this prompt, since a here-doc aimed at a TUI is not input the program can read.
 
 ## Selection
 

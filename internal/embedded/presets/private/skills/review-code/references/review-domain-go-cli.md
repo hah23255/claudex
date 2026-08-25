@@ -36,10 +36,12 @@ Several checks invert by project type: the same construct is required in CLI Onl
 | Registration level | Grep for `PersistentFlags`; check each is honored by the whole subtree it sits on |
 | Boolean shorthands | Grep `cmd/` for `BoolVarP` and `BoolVar`; a switch takes a long name only |
 | Every prompt has a flag | For each prompt call site, check the command registers a flag or accepts a positional supplying the same value |
+| Stdin is explicit | Grep for `os.Stdin`, `io.ReadAll`, and `bufio.NewScanner`; every read is reached only by a flag whose value is `-`, never by a terminal check |
+| One `-` per invocation | For a command with two or more stdin-capable flags, check it rejects both being `-` |
 | Required and exclusive flags | Grep for `MarkFlagRequired` and `MarkFlagsMutuallyExclusive`; read each `Run` for hand-rolled validation that should be one of them |
 | `Run` shape | Read each `Run` body and trace where the work happens |
 | Subcommand package shape | Read each `cmd/*/` package: whether the parent is exported, whether it has a `Run`, whether children do |
-| Output calls | Grep `cmd/` for `fmt.Println`, `fmt.Printf`, `utils.Print`, `u.Print`, and `log.Printf`, then compare against the type |
+| Output calls | Grep `cmd/` for `fmt.Println`, `fmt.Printf`, `utils.Print`, and `u.Print`, then compare against the type |
 
 ## Category 3: Output Tiers
 
@@ -54,7 +56,7 @@ Several checks invert by project type: the same construct is required in CLI Onl
 | Subprocess stderr | Grep for `exec.Command`; for each, check whether stderr is captured before the error is reported |
 | Table rendering | Read `utils/table.go`; one renderer, not one per audience |
 | Terminal colors | Grep for lipgloss color construction and check whether the values are ANSI indices or hex |
-| zerolog color gating | Read `setupLogs` for `NoColor` derived from the terminal check rather than hardcoded |
+| zerolog writer selection | Read `setupLogs` for `ConsoleWriter` chosen on the terminal check, with the plain JSON writer otherwise |
 
 ## Category 4: Prompts
 
