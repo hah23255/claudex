@@ -9,7 +9,7 @@
 - `[SKILLS_DIR]/node-http-ws-server/SKILL.md`
 - `[SKILLS_DIR]/node-auth/SKILL.md` (Category 5 only)
 - `[SKILLS_DIR]/node-frontend/SKILL.md`
-- `[SKILLS_DIR]/unit-testing/SKILL.md`
+- `[SKILLS_DIR]/write-unit-tests/SKILL.md`
 
 The expected pattern for every check lives in those skills. This file states what to look at and how to look at it.
 

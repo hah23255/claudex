@@ -1,6 +1,6 @@
 ---
 name: develop
-description: The entry point for any coding work in a project that has these skills installed - implementing a feature, changing or refactoring code, fixing a bug, writing tests, scaffolding something new, or touching build and CI. Selects and loads the skills that govern the task before any code is written, holds the work to them while coding, and ends with a self-review of the diff against them. Use this first whenever you are about to develop anything. Not for a pure question with no code change, and not for a full audit of an existing codebase.
+description: The entry point for any coding work in a project that has these skills installed - implementing a feature, changing or refactoring code, fixing a bug, scaffolding something new, or touching build and CI. Selects and loads the skills that govern the task before any code is written, holds the work to them while coding, and ends with a self-review of the diff against them. Use this first whenever you are about to develop anything. Not for a pure question with no code change, not for writing unit tests, and not for a full audit of an existing codebase.
 user-invocable: true
 ---
 
@@ -12,7 +12,9 @@ The other skills carry the conventions and only help when the right ones are in 
 
 ## When to Use
 
-Run this as the first step of any coding task: a feature, a refactor, a bug fix, new or changed tests, a new project, a build or CI change, a README.
+Run this as the first step of any coding task: a feature, a refactor, a bug fix, a new project, a build or CI change, a README.
+
+This pipeline does not include unit tests at all. No step here writes, extends, or repairs one, and finishing a feature is not a reason to add one. Tests exist only when the user explicitly asks for them, and that request is served by the `write-unit-tests` skill, which is not loaded from here.
 
 Skip it for a question with no code change. A deliberate re-audit of an existing codebase is a different job with its own multi-agent orchestration, and this only reviews the diff you just wrote.
 
@@ -22,7 +24,7 @@ State in one line what is being built or changed, then classify it.
 
 **Project type**, read off the tree: CLI Only, Web Only, CLI + Web, Headless API Service, Library, Node Web Only, or Chrome Extension. `go.mod` with `cmd/` and `utils/` and no `internal/server/` is CLI Only; `internal/server/static/` without `utils/` is Web Only; both together is the hybrid; `package.json` with `"type":"module"` plus `public/` and `src/` is Node Web Only; `manifest.json` with `manifest_version` is an extension.
 
-**Work type**: new project, feature, refactor, bug fix, tests, infrastructure, docs.
+**Work type**: new project, feature, refactor, bug fix, infrastructure, docs.
 
 ## Step 2: Select and read the governing skills
 
@@ -72,7 +74,6 @@ Scope the run to what changed: a command that was touched gets invoked, a page t
 | Task touches | Load |
 |---|---|
 | Any Go code | `go-project-layout`, `go-idioms` |
-| Tests, in any language | `unit-testing` |
 | Cobra root, commands, subcommands, flags | `go-cli-commands` |
 | Printing, tables, `--debug` and `--for-ai`, terminal colors | `go-cli-output` |
 | Interactive prompts, passwords, selection lists | `go-cli-prompts` |

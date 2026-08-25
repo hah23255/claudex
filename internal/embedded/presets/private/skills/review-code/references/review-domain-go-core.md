@@ -5,7 +5,7 @@
 **Skills to load, in full, before running any check below:**
 - `[SKILLS_DIR]/go-project-layout/SKILL.md`
 - `[SKILLS_DIR]/go-idioms/SKILL.md`
-- `[SKILLS_DIR]/unit-testing/SKILL.md`
+- `[SKILLS_DIR]/write-unit-tests/SKILL.md`
 
 The expected pattern for every check lives in those skills. This file states what to look at and how to look at it.
 
