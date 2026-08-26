@@ -59,7 +59,7 @@ func processAll(ctx context.Context, items []Item) {
 
 `wg.Go` spawns the goroutine and pairs `Add` with `Done` itself, which removes the failure mode where an early return skips the `Done`.
 
-The logging call follows the project's own convention: zerolog for CLI Only, `log.Printf("ERROR ...")` for Web Only and a hybrid's server layer.
+The logging call is zerolog in every project type, so this loop reads the same wherever it lands.
 
 ## errgroup, Stop on First Error
 

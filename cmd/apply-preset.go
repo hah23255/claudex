@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
@@ -107,6 +108,9 @@ func choosePresets(available []workspace.Preset) []string {
 	}
 
 	picked, err := u.PromptMultiSelect("Presets", labels)
+	if errors.Is(err, u.ErrNoTerminal) {
+		u.PrintFatal("apply-preset needs a preset name when there is no interactive terminal", nil)
+	}
 	if err != nil {
 		u.PrintFatal("TUI error", err)
 	}

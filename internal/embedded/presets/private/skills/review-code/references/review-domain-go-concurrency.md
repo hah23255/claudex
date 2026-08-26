@@ -51,7 +51,7 @@ Reporting a skip is the correct outcome for a project that does neither, and inv
 | Type registration precedes load | Read the command wiring for the order of registration and state loading |
 | Signal handling | Grep for `signal.NotifyContext` |
 | Display package separation | Glob for a display package and check the engine does not import it |
-| Display AI branch | Read the display entry point for a `GlobalForAIFlag` branch |
+| Display non-terminal branch | Read the display entry point for a `GlobalDebugFlag` or `!StdoutIsTerminal` branch |
 | Display colors | Grep the display for color construction and check ANSI indices against hex |
 
 ---

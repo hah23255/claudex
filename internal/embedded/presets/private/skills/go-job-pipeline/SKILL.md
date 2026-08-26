@@ -8,7 +8,7 @@ user-invocable: false
 
 **Many items, N worker lanes, one progress channel, and a state file that survives Ctrl+C.**
 
-This applies to CLI Only projects and the command surface of a CLI + Web hybrid, since it assumes the `utils` package and the `--for-ai` flag exist.
+This applies to CLI Only projects and the command surface of a CLI + Web hybrid, since it assumes the `utils` package exists.
 
 Reach for it when a tool runs many items through a shared pipeline that needs progress reporting and resumability. One-shot work with no resume and no progress uses plain goroutine primitives, because the `Job` interface and the state file are pure overhead when nothing is going to be resumed.
 
@@ -355,12 +355,12 @@ The display consumes the progress channel and owns the terminal. It lives in its
 - A final summary replaces the live view on `Stop`, reporting completed and failed counts.
 - Colors follow the same rule as the rest of the CLI: ANSI indices 0 through 15, never hex, so the display adopts the user's terminal theme.
 
-Under `--for-ai` the display skips the interactive view entirely and prints one plain-text line per update, since redrawing in place produces cursor escapes that a reading agent cannot parse.
+Without a terminal, or under `--debug`, the display skips the live view entirely and prints one line per update, since redrawing in place produces cursor escapes that whoever reads the output later cannot use.
 
 ```go
 func (d *Display) Start(updates <-chan Progress) {
-    if utils.GlobalForAIFlag {
-        d.startAI(updates)
+    if utils.GlobalDebugFlag || !utils.StdoutIsTerminal {
+        d.startLinear(updates)
         return
     }
     // consume updates into state, then redraw on the ticker

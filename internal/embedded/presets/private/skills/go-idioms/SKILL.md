@@ -143,12 +143,13 @@ These are always fine:
 | Package | For | Project types |
 |---|---|---|
 | `spf13/cobra` | CLI framework | any with commands |
-| `rs/zerolog` | structured logging | CLI Only, CLI + Web |
+| `rs/zerolog` | logging | any with an entry point |
 | `charm.land/bubbletea/v2`, `charm.land/lipgloss/v2`, `charm.land/bubbles/v2` | TUI | CLI Only, CLI + Web |
+| `github.com/charmbracelet/x/term` | terminal detection, which decides log format and output styling | any with an entry point |
 | `gorilla/websocket` | WebSocket | any |
 | `goccy/go-yaml` | YAML, since `yaml.v2` is deprecated | any |
 
-Web Only and Headless API Service projects use the standard `log` package, so zerolog, bubbletea, lipgloss, and bubbles do not appear in their `go.mod` at all.
+Web Only and Headless API Service projects have no terminal UI, so bubbletea, lipgloss, and bubbles do not appear in their `go.mod` at all. zerolog does, since every project type logs through it.
 
 Anything else is acceptable when it fills a genuine need the standard library cannot reasonably cover: `google/uuid`, database drivers, cloud SDK clients, `golang.org/x/...`. Judge whether the dependency is justified rather than whether it appears on a list, because a fixed allow-list either blocks legitimate work or grows until it means nothing.
 

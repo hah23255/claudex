@@ -66,7 +66,7 @@ Run: func(cmd *cobra.Command, args []string) {
 }
 ```
 
-A Web Only project writes the same boundary with `log.Fatalf("ERROR Failed to download from %s: %v", url, err)`, and its HTTP handlers log with `log.Printf` and return a status code.
+A Web Only project writes the same boundary with `log.Fatal().Err(err).Str("url", url).Msg("failed to download")`, and its HTTP handlers log with `log.Error()` and return a status code.
 
 Internal packages in a Web Only project, and the server layer of a CLI + Web hybrid, do not import `utils`. A hybrid's CLI-operation packages follow the CLI Only convention instead, so the import tells you which half of the binary you are in.
 

@@ -1,48 +1,66 @@
 ---
 name: go-cli-output
-description: The utils printer for Go CLI tools - the three output tiers behind --debug and --for-ai, the Print* API, table rendering, terminal colors, and error discipline. Use when writing anything a CLI prints, when building or changing utils/printer.go, utils/table.go, or utils/globals.go, or when a command reaches for fmt.Println. Triggers on PrintInfo, PrintSuccess, PrintError, PrintFatal, PrintWarn, PrintGeneric, PrintTable, GlobalDebugFlag, GlobalForAIFlag, lipgloss.ANSIColor, and --for-ai.
+description: The utils printer for Go CLI tools - the two output tiers behind --debug, the Print* API, table rendering, terminal colors, and error discipline. Use when writing anything a CLI prints, when building or changing utils/printer.go, utils/table.go, or utils/globals.go, or when a command reaches for fmt.Println. Triggers on PrintInfo, PrintSuccess, PrintError, PrintFatal, PrintWarn, PrintGeneric, PrintTable, GlobalDebugFlag, StdoutIsTerminal, lipgloss.Println, and lipgloss.ANSIColor.
 user-invocable: false
 ---
 
 # Go CLI Output
 
-**Every line a CLI Only tool prints goes through `utils`, which renders it three ways depending on who is reading.**
+**Every line a CLI Only tool prints goes through `utils`, which renders it two ways depending on whether `--debug` is set, and drops its own color whenever stdout is not a terminal.**
 
-Web Only and Headless API Service projects have no `utils/` package and print with `log.Printf` instead.
+Web Only and Headless API Service projects have no `utils/` package. They log through the same zerolog setup and print nothing else, since a container's stdout has no reader to style output for.
 
-## The Three Tiers
+## The Two Tiers
 
-| Tier | Flag | Output | Input |
-|---|---|---|---|
-| Human (default) | none | styled ANSI via lipgloss | interactive bubbletea TUI |
-| AI | `--for-ai` | plain text with `[OK]`, `[ERROR]`, `[WARN]`, `[INFO]` prefixes | piped stdin |
-| Debug | `--debug` | structured zerolog with timestamps and full error detail | not applicable |
+| Tier | Flag | Output |
+|---|---|---|
+| Normal (default) | none | styled ANSI via lipgloss, transient lines cleared |
+| Debug | `--debug` | zerolog with timestamps and full error detail, console on a terminal and JSON otherwise, nothing cleared |
 
-`--debug` and `--for-ai` are mutually exclusive, enforced by `MarkFlagsMutuallyExclusive`, because zerolog output interleaved with parseable plain text is neither.
+There is no third tier for a machine reading the output, and a flag that asks for one is not added. An agent invoking the tool passes `--debug` and gets more than a plain-text mode could carry: every step announced, every wrapped error intact, and nothing redrawn over.
 
-`--for-ai` is the single gate for every AI-friendly behavior, so a caller enables the whole contract with one flag instead of discovering three. The tool carries no LLM SDK dependency: it is the thing an agent invokes, not a thing that invokes a model.
+## Piped Output
 
+Plain text is a property of the destination rather than a mode the caller selects. Every printer writes through `lipgloss.Println`, whose writer is `colorprofile.NewWriter(os.Stdout, os.Environ())`; that resolves to `NoTTY` when stdout is not a terminal and strips every escape sequence on the way out. Piping the tool anywhere produces plain text with nothing passed and nothing remembered.
+
+zerolog answers the same check one level up, choosing the writer rather than decolorizing one: `ConsoleWriter` on a terminal, and its own JSON otherwise.
+
+```go
+var out io.Writer = os.Stdout
+if StdoutIsTerminal {
+    out = zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.DateTime}
+}
+log.Logger = zerolog.New(out).With().Timestamp().Logger()
 ```
-echo "my input" | toolname command --for-ai
-```
 
-Human mode is ephemeral, since transient lines get cleared. AI and debug modes are permanent, since everything printed has to survive being piped into a parser or a log.
+Ephemeral output is a terminal affordance and nothing else. `ClearLines` and the in-place progress bar are inert under `--debug` and whenever stdout is not a terminal, so a log or a pipe keeps the full progression rather than a stream of cursor escapes.
 
 ## Globals
 
 ```go
 package utils
 
-// GlobalDebugFlag is set by the cobra root command when --debug is passed.
+import (
+    "os"
+
+    "github.com/charmbracelet/x/term"
+)
+
 var GlobalDebugFlag bool
 
-// GlobalForAIFlag is set by the cobra root command when --for-ai is passed.
-var GlobalForAIFlag bool
+var (
+    StdinIsTerminal  = term.IsTerminal(os.Stdin.Fd())
+    StdoutIsTerminal = term.IsTerminal(os.Stdout.Fd())
+)
 ```
+
+`term.IsTerminal` rather than `os.ModeCharDevice`: `/dev/null` is a character device, so the mode bit reports a terminal for the one stream that most certainly has nobody at it, and a prompt gated on it then opens a TUI into the void. The module already ships under the bubbletea and lipgloss stack, so using it directly adds no build.
+
+Both are evaluated once at package init, since neither stream is replaced underneath a running process.
 
 ## The Print Shape
 
-Every printer branches the same way, debug first, then AI, then human. Writing them all to one shape means a new printer is a copy with a different glyph rather than a new decision.
+Every printer branches the same way, debug first and styled output otherwise. Writing them all to one shape means a new printer is a copy with a different glyph rather than a new decision.
 
 ```go
 var (
@@ -55,11 +73,9 @@ var (
 func PrintInfo(msg string) {
     if GlobalDebugFlag {
         log.Info().Msg(msg)
-    } else if GlobalForAIFlag {
-        fmt.Println("[INFO] " + msg)
-    } else {
-        fmt.Println(infoStyle.Render("→ " + msg))
+        return
     }
+    lipgloss.Println(infoStyle.Render("→ " + msg))
 }
 
 func PrintError(msg string, err error) {
@@ -69,31 +85,36 @@ func PrintError(msg string, err error) {
         } else {
             log.Error().Msg(msg)
         }
-    } else if GlobalForAIFlag {
-        fmt.Println("[ERROR] " + msg)
-    } else {
-        fmt.Println(errorStyle.Render("✗ " + msg))
+        return
     }
+    lipgloss.Println(errorStyle.Render("✗ " + msg))
+}
+
+func PrintFatal(msg string, err error) {
+    PrintError(msg, err)
+    os.Exit(1)
 }
 ```
 
+`fmt.Println` never appears in a printer, since it writes past the color profile and leaves escape sequences in a piped stream.
+
 ## The Print Surface
 
-| Function | Human | AI | Debug |
-|---|---|---|---|
-| `PrintInfo(msg)` | `→ msg` blue | `[INFO] msg` | `log.Info()` |
-| `PrintSuccess(msg)` | `✓ msg` green | `[OK] msg` | `log.Info()` |
-| `PrintError(msg, err)` | `✗ msg` red | `[ERROR] msg` | `log.Error().Err(err)` |
-| `PrintFatal(msg, err)` | `✗ msg` red, then `os.Exit(1)` | `[ERROR] msg`, then exit | `log.Error().Err(err)`, then exit |
-| `PrintWarn(msg, err)` | `! msg` yellow | `[WARN] msg` | `log.Warn().Err(err)` |
-| `PrintGeneric(msg)` | `msg` | `msg` | `msg` |
-| `PrintRunning(msg)` | `↻ msg` blue | `[RUNNING] msg` | `log.Info()` |
-| `PrintIndentedSuccess(msg)` | `  ✓ msg` green | `[OK] msg` | `log.Info()` |
-| `PrintIndentedError(msg, err)` | `  ✗ msg` red | `[ERROR] msg` | `log.Error().Err(err)` |
-| `PrintIndentedWarn(msg, err)` | `  ! msg` yellow | `[WARN] msg` | `log.Warn().Err(err)` |
-| `PrintIndentedRunning(msg)` | `  ↻ msg` blue | `[RUNNING] msg` | `log.Info()` |
+| Function | Normal | Debug |
+|---|---|---|
+| `PrintInfo(msg)` | `→ msg` blue | `log.Info()` |
+| `PrintSuccess(msg)` | `✓ msg` green | `log.Info()` |
+| `PrintError(msg, err)` | `✗ msg` red | `log.Error().Err(err)` |
+| `PrintFatal(msg, err)` | `✗ msg` red, then `os.Exit(1)` | `log.Error().Err(err)`, then exit |
+| `PrintWarn(msg, err)` | `! msg` yellow | `log.Warn().Err(err)` |
+| `PrintGeneric(msg)` | `msg` | `msg` |
+| `PrintRunning(msg)` | `↻ msg` blue | `log.Info()` |
+| `PrintIndentedSuccess(msg)` | `  ✓ msg` green | `log.Info()` |
+| `PrintIndentedError(msg, err)` | `  ✗ msg` red | `log.Error().Err(err)` |
+| `PrintIndentedWarn(msg, err)` | `  ! msg` yellow | `log.Warn().Err(err)` |
+| `PrintIndentedRunning(msg)` | `  ↻ msg` blue | `log.Info()` |
 
-`PrintGeneric` prints raw text with no branch at all, because data the caller wants verbatim (a URL, a token, a rendered table) must not gain a prefix or a color that a consumer then has to strip.
+`PrintGeneric` adds no prefix, no glyph, and no style, because data the caller wants verbatim (a URL, a token, a rendered table) must not gain a marker that a consumer then has to strip.
 
 `PrintFatal` exits with status 1 after printing, so a caller never has to remember the `os.Exit` that a fatal message implies.
 
@@ -101,7 +122,7 @@ func PrintError(msg string, err error) {
 
 The `msg` parameter is the human-readable label, and `err` is the Go error. Passing the actual `err` in the error parameter is what makes `--debug` useful, since zerolog's `.Err(err)` records it as a structured field that a baked-in string cannot become.
 
-Human and AI modes show only `msg`. The error detail is exclusively for debug introspection, which keeps a stack of wrapped errors out of a user's face while leaving it one flag away.
+Normal output shows only `msg`. The error detail is exclusively for debug introspection, which keeps a stack of wrapped errors out of a user's face while leaving it one flag away.
 
 ```go
 utils.PrintFatal("git not found in PATH", err)
@@ -148,15 +169,12 @@ var (
 
 ## Tables
 
-`PrintTable(headers, rows)` renders lipgloss box-drawing in human mode and a markdown table in AI mode, so the same call feeds a terminal and a parser without the caller branching.
+`PrintTable(headers, rows)` renders one way, as lipgloss box drawing. Box characters are not escape sequences, so a piped table arrives intact with only its colors stripped, and a second renderer for a second audience would be a format nobody validates.
 
 ```go
 package utils
 
 import (
-    "fmt"
-    "strings"
-
     "charm.land/lipgloss/v2"
     "charm.land/lipgloss/v2/table"
 )
@@ -168,10 +186,6 @@ var (
 )
 
 func PrintTable(headers []string, rows [][]string) {
-    if GlobalForAIFlag {
-        printMarkdownTable(headers, rows)
-        return
-    }
     t := table.New().
         Border(lipgloss.NormalBorder()).
         BorderStyle(borderStyle).
@@ -185,29 +199,6 @@ func PrintTable(headers []string, rows [][]string) {
         })
     PrintGeneric(t.Render())
 }
-
-func printMarkdownTable(headers []string, rows [][]string) {
-    if len(headers) == 0 {
-        return
-    }
-    seps := make([]string, len(headers))
-    for i := range seps {
-        seps[i] = "---"
-    }
-    fmt.Println("| " + strings.Join(escapeCells(headers), " | ") + " |")
-    fmt.Println("| " + strings.Join(seps, " | ") + " |")
-    for _, row := range rows {
-        fmt.Println("| " + strings.Join(escapeCells(row), " | ") + " |")
-    }
-}
-
-func escapeCells(cells []string) []string {
-    escaped := make([]string, len(cells))
-    for i, cell := range cells {
-        escaped[i] = strings.ReplaceAll(cell, "|", "\\|")
-    }
-    return escaped
-}
 ```
 
-Pipe characters in cell values are escaped, because one unescaped `|` shifts every column after it and silently corrupts the parse.
+A command whose output is meant to be parsed rather than read takes a `--json` flag and marshals a struct, which is a data contract instead of a table someone has to scrape.
