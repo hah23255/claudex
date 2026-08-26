@@ -3,6 +3,7 @@
 **Applies to:** Go CLI Only, Go Web Only, Go CLI + Web. Categories 3 through 5 apply to CLI Only and the command surface of a hybrid, and are skipped for Web Only.
 
 **Skills to load, in full, before running any check below:**
+- `[SKILLS_DIR]/go-cli-structure/SKILL.md`
 - `[SKILLS_DIR]/go-cli-commands/SKILL.md`
 - `[SKILLS_DIR]/go-cli-output/SKILL.md`
 - `[SKILLS_DIR]/go-cli-prompts/SKILL.md`
@@ -20,7 +21,7 @@ Several checks invert by project type: the same construct is required in CLI Onl
 |---|---|
 | Root command fields | Read `cmd/root.go` |
 | `AppVersion` and its injection | Grep `cmd/root.go` for `AppVersion`; grep the Makefile for the matching `-X` path |
-| `Execute` behavior | Read `cmd/root.go` |
+| `Execute` behavior | Read `cmd/root.go`; check it sets the exit code without reprinting an error Cobra has already written |
 | Help and completion visibility | Read `cmd/root.go` |
 | Logging setup | Read `cmd/root.go` for `setupLogs` and `cobra.OnInitialize`, then compare against the project type |
 | Global flags | Read `cmd/root.go` for `--debug`, and for any flag added to obtain machine-readable output, then compare against the type |
