@@ -26,6 +26,8 @@ State in one line what is being built or changed, then classify it.
 
 **Work type**: new project, feature, refactor, bug fix, infrastructure, docs.
 
+**Command surface**, when the work adds or changes one. The baseline is `tool <command> <args> --flags` and nothing more. An interactive prompt, stdin eligibility on a flag, and a `<thing>-file` variant are offered here and waited on rather than built, because each adds a path every later change has to keep working and the user is the one who decides to own that.
+
 ## Step 2: Select and read the governing skills
 
 Pick from the Skill Map below, then read each selected `SKILL.md` in full. Naming a skill is not reading it, and a convention you half-remember is the one that produces a plausible file nobody wants.
@@ -88,7 +90,7 @@ The LSP is already wired into every session for Go, Python, TypeScript, and Java
 | Any Go code | `go-project-layout`, `go-idioms` |
 | Cobra root, commands, subcommands, flags, input channels | `go-cli-commands` |
 | Printing, tables, `--debug`, terminal colors | `go-cli-output` |
-| Interactive prompts, passwords, selection lists | `go-cli-prompts` |
+| Interactive prompts, passwords, selection lists, a flag reading stdin | `go-cli-prompts` |
 | Running/done progress, phases, progress bars | `go-cli-progress` |
 | `internal/` package structure, error boundaries, storage | `go-package-architecture` |
 | `net/http` server, embedded static serving, middleware | `go-http-server` |

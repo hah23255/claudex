@@ -1,6 +1,6 @@
 ---
 name: go-cli-prompts
-description: Interactive input for Go CLI tools - when a prompt is the right channel at all, how a value resolves from a flag then stdin then a prompt, the utils prompt helpers, and the ErrNoTerminal contract that keeps every command scriptable. Use when a command needs to ask the user something, when building or changing utils/input.go, when piping a secret into a command, or when adding a password, free-text, or selection prompt. Triggers on PromptInput, PromptPassword, PromptTextArea, PromptSelect, PromptMultiSelect, ReadStdin, ErrNoTerminal, StdinIsTerminal, a flag whose value is -, bubbletea textinput, and textarea.
+description: Interactive input for Go CLI tools - when a prompt is the right channel at all, how a value resolves from a flag then stdin then a prompt, the shared stdin resolver behind a flag given -, the utils prompt helpers, and the ErrNoTerminal contract that keeps every command scriptable. Use when a command needs to ask the user something, when building or changing utils/input.go, when piping a secret or a file into a command, or when adding a password, free-text, or selection prompt. Triggers on PromptInput, PromptPassword, PromptTextArea, PromptSelect, PromptMultiSelect, ResolveStdin, MarkStdinLine, MarkStdinStream, SetAnnotation, ErrNoTerminal, StdinIsTerminal, a flag whose value is -, bubbletea textinput, and textarea.
 user-invocable: false
 ---
 
@@ -14,45 +14,108 @@ Interactive input is the exception rather than the default channel. Reach for it
 
 Every prompt has a flag, or a positional argument, that supplies the same value and skips it. Without one the command is unusable from a script, a cron job, or an agent, and no amount of terminal polish makes up for that.
 
-A value that a prompt could ask for resolves in three steps, and the prompt is the last of them:
+A flag whose value has a prompt is never `MarkFlagRequired`. Cobra rejects the invocation before `Run` is reached, so the prompt never runs and the flag it was meant to make optional is mandatory after all. The resolution below enforces the requirement instead, and its failure message names every path that would have worked.
+
+Every value that can arrive more than one way resolves in one order:
 
 | The flag holds | The value comes from |
 |---|---|
 | a value | the flag itself |
-| `-` | stdin, drained by `ReadStdin` |
-| nothing | the prompt |
+| `-` | stdin, in the flag's marked mode |
+| nothing | the prompt, when one exists |
+| nothing, and no prompt exists or no terminal | an error naming every path that would have worked |
 
 ```go
 password := addFlags.password
-switch password {
-case "-":
-    piped, err := u.ReadStdin()
-    if err != nil {
-        u.PrintFatal("could not read the password from stdin", err)
-    }
-    password = piped
-case "":
+if password == "" {
     entered, err := u.PromptPassword("Password:")
     if errors.Is(err, u.ErrNoTerminal) {
         u.PrintFatal("add needs --password, or --password - to read it from stdin", nil)
+    }
+    if err != nil {
+        u.PrintFatal("TUI error", err)
     }
     password = entered
 }
 ```
 
-Reading stdin is what the `-` asked for and never what a missing terminal implies, so a command whose stdin is `/dev/null` or closed fails rather than storing an empty value.
+The `-` case is absent from that body because the resolver has already replaced the flag's value by the time `Run` runs.
+
+## The Stdin Resolver
+
+One implementation in `utils` covers every stdin-eligible flag in the tool, so no command hand-rolls the reading and a review looks for the marking rather than for correct parsing.
+
+Eligibility is a pflag annotation carrying the read mode (`pflag@v1.0.9 flag.go:519`):
 
 ```go
-func ReadStdin() (string, error) {
-    data, err := io.ReadAll(os.Stdin)
-    if err != nil {
-        return "", err
-    }
-    return strings.TrimRight(string(data), "\r\n"), nil
+const stdinAnnotation = "stdin"
+
+func MarkStdinLine(cmd *cobra.Command, name string) error {
+    return cmd.Flags().SetAnnotation(name, stdinAnnotation, []string{"line"})
+}
+
+func MarkStdinStream(cmd *cobra.Command, name string) error {
+    return cmd.Flags().SetAnnotation(name, stdinAnnotation, []string{"stream"})
 }
 ```
 
-`TrimRight` on the line endings rather than `TrimSpace`, because `echo` appends a newline that is not part of the value while a password may legitimately end in a space.
+```go
+func ResolveStdin(cmd *cobra.Command) error {
+    var target *pflag.Flag
+    var mode string
+    var err error
+    cmd.Flags().VisitAll(func(f *pflag.Flag) {
+        modes, ok := f.Annotations[stdinAnnotation]
+        if !ok || len(modes) == 0 || !f.Changed || f.Value.String() != "-" {
+            return
+        }
+        if target != nil {
+            err = fmt.Errorf("only one flag can read stdin: --%s and --%s were both given -", target.Name, f.Name)
+            return
+        }
+        target, mode = f, modes[0]
+    })
+    if err != nil || target == nil {
+        return err
+    }
+    if StdinIsTerminal {
+        return fmt.Errorf("--%s was given - but nothing is piped into stdin", target.Name)
+    }
+
+    var value string
+    if mode == "line" {
+        line, readErr := bufio.NewReader(os.Stdin).ReadString('\n')
+        if readErr != nil && !errors.Is(readErr, io.EOF) {
+            return readErr
+        }
+        value = strings.TrimRight(line, "\r\n")
+    } else {
+        data, readErr := io.ReadAll(os.Stdin)
+        if readErr != nil {
+            return readErr
+        }
+        value = strings.TrimRight(string(data), "\r\n")
+    }
+    if value == "" {
+        return fmt.Errorf("--%s was given - but stdin was empty", target.Name)
+    }
+    return target.Value.Set(value)
+}
+```
+
+`TrimRight` on the line endings rather than `TrimSpace`, because `echo` appends a newline that is not part of the value while a password may legitimately end in a space. An empty result is an error rather than an empty value, since storing nothing and reporting success is the failure nobody notices until they need the value back.
+
+One walk covers the whole invocation: `cmd.Flags()` holds the command's own flags and every persistent flag inherited from its parents, merged just before parsing (`cobra@v1.10.2 command.go:1877`).
+
+The resolver is wired once, on the root:
+
+```go
+rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+    return u.ResolveStdin(cmd)
+}
+```
+
+Cobra runs the closest `PersistentPreRunE` it finds walking up from the matched command and stops there (`cobra@v1.10.2 command.go:984-997`), so a subcommand defining its own hook turns the resolver off for its whole subtree and calls `u.ResolveStdin(cmd)` first thing inside that hook to put it back. Running before Cobra validates required flags and flag groups is what lets a value that arrived through the pipe count as present for both.
 
 ## No Terminal
 
@@ -206,7 +269,7 @@ func PromptTextArea(prompt, placeholder string) (string, error) {
 
 The `Update` method mirrors `inputModel`, matching `"ctrl+d"` for submit instead of `"enter"`.
 
-A body of text that a script would supply comes through `--body -` or a `--file` flag rather than through this prompt, since a here-doc aimed at a TUI is not input the program can read.
+A body of text that a script would supply comes through `--body-file`, given a path or `-`, rather than through this prompt, since a here-doc aimed at a TUI is not input the program can read.
 
 ## Selection
 
