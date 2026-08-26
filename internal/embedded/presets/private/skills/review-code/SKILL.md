@@ -79,6 +79,14 @@ A target containing `/` is a package path:
 | `src/**`, `public/**`, `test/**`, `package.json` | Node |
 | `.github/**`, `Makefile`, `Dockerfile`, `README.md` | Infrastructure |
 
+A target that matches no keyword row and contains no `/` resolves to nothing, and is reported rather than guessed at:
+
+```
+No domain matches the target "[target]". The domains are core, cli, server, concurrency, node, and infra.
+```
+
+Guessing at the nearest-looking domain reviews something the user did not ask about, and every finding it produces is noise they have to read before discarding. Naming the domains costs one message and lets them say which they meant.
+
 When the resolved domain does not apply to the detected project type, report that and stop:
 
 ```
