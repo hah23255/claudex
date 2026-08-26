@@ -14,7 +14,7 @@ Read the manifest for every domain in scope before that domain is reviewed: by y
 
 **Before reviewing a domain:**
 - `./references/review-domain-go-core.md`: Go layout, idioms, logging, config, tests
-- `./references/review-domain-go-cli.md`: Cobra commands, output tiers, prompts, progress
+- `./references/review-domain-go-cli.md`: the command tree, flags and arguments, output tiers, prompts, progress
 - `./references/review-domain-go-server.md`: package architecture, HTTP server, OAuth, frontend
 - `./references/review-domain-go-concurrency.md`: goroutine primitives and the job pipeline
 - `./references/review-domain-node.md`: Node layout, idioms, server, auth, config, frontend
@@ -53,7 +53,7 @@ With no target, go to Step 3a. With one, resolve it here first.
 |---|---|---|
 | `core`, `foundations`, `layout`, `logging`, `idioms`, `config` | Go Core | whole domain |
 | `tests`, `testing` | Go Core and Node | the testing checks only |
-| `cli`, `cobra`, `commands`, `flags`, `output`, `prompts`, `progress`, `tui` | Go CLI | whole domain |
+| `cli`, `cobra`, `structure`, `root`, `commands`, `flags`, `args`, `stdin`, `output`, `prompts`, `progress`, `tui` | Go CLI | whole domain |
 | `server`, `backend`, `frontend`, `web`, `http`, `auth`, `oauth`, `markdown`, `mermaid` | Go Server and Frontend | whole domain |
 | `concurrency`, `goroutines`, `pipeline`, `highway` | Go Concurrency | whole domain |
 | `node`, `nodejs`, `esm` | Node | whole domain |
