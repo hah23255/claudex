@@ -1,6 +1,6 @@
 ---
 name: go-cli-commands
-description: The surface a Go CLI command exposes - the baseline every tool starts at, the three purchases on top of it, flag conventions, positional arguments, enum flags, and a flag that reads stdin. Use when adding or changing a flag, deciding whether a value should be a flag, a prompt, or a pipe, naming a value that spans lines, declaring Args, or validating a fixed set of allowed values. Triggers on PersistentFlags, BoolVar, StringVarP, SortFlags, cobra.NoArgs, ExactArgs, RangeArgs, pflag.Value, MarkFlagRequired, MarkFlagsOneRequired, MarkFlagsRequiredTogether, MarkFlagsMutuallyExclusive, MarkStdinLine, MarkStdinStream, and a flag whose value is -. Not for the shape of the command tree itself.
+description: The surface a Go CLI command exposes - the baseline every tool starts at, the two purchases on top of it, flag conventions, positional arguments, enum flags, a file-shaped value, and a flag that reads stdin. Use when adding or changing a flag, deciding whether a value should be a flag, a prompt, or a pipe, naming a value that spans lines, declaring Args, or validating a fixed set of allowed values. Triggers on PersistentFlags, BoolVar, StringVarP, SortFlags, cobra.NoArgs, ExactArgs, RangeArgs, pflag.Value, MarkFlagRequired, MarkFlagsOneRequired, MarkFlagsRequiredTogether, MarkFlagsMutuallyExclusive, MarkStdinLine, MarkStdinStream, and a flag whose value is -. Not for the shape of the command tree itself.
 user-invocable: false
 ---
 
@@ -10,17 +10,16 @@ user-invocable: false
 
 ## The Command Surface
 
-Every tool starts at one baseline and buys anything past it deliberately. The baseline is `tool <command> <args> --flags`: arguments name what is acted on, flags change how, and that is the whole surface a command gets without anyone asking for more.
+Every tool starts at one baseline and buys anything past it deliberately. The baseline is `tool <command> <args> --flags`: arguments name what is acted on, flags change how, and that is the whole surface a command gets without anyone asking for more. A `<thing>-file` flag is part of that baseline, so a command that reads its value out of a file, or that can work through many of them, registers one without asking.
 
-Three extras sit on top. None is built unless the user asked for it, or it was offered while the surface was being designed and accepted.
+Two extras sit on top. Neither is built unless the user asked for it, or it was offered while the surface was being designed and accepted.
 
 | Purchase | What it adds |
 |---|---|
 | An interactive prompt | a value the user types when the flag is absent |
 | Stdin eligibility | a flag reading its value from a pipe when given `-` |
-| A `<thing>-file` variant | a second flag carrying many values, or one spanning lines |
 
-Each purchase adds a path every later change has to keep working, so it is proposed while the surface is being designed rather than discovered halfway through an implementation. A command that looks like it wants one is raised as an offer.
+Each purchase adds a path every later change has to keep working, so it is proposed while the surface is being designed rather than discovered halfway through an implementation. A command that looks like it wants one is raised as an offer. Both purchases can sit on a `<thing>-file` flag: `--url-file` exists on its own, while `--url-file -` and a prompt behind it are bought.
 
 Three channels carry a value into a command, and which one a given value uses is a decision rather than a preference.
 
@@ -164,7 +163,7 @@ An inline secret is a convenience that leaks: it lands in shell history and is v
 
 ## File-Shaped Values
 
-A value that can span lines never gets a bare flag. It gets `<thing>-file`, and one suffix covers both a list of single-line values and a single multi-line blob, with the flag's help text saying which the command expects.
+A value that can span lines never gets a bare flag. It gets `<thing>-file`, and one suffix covers both a list of single-line values and a single multi-line blob, with the flag's help text saying which the command expects. The suffix needs no offer behind it, so the flag is registered as soon as the command can take that input from a file.
 
 | The value | The flags |
 |---|---|
