@@ -8,7 +8,7 @@ user-invocable: false
 
 **One config object themes every Mermaid diagram type in Catppuccin Mocha.**
 
-Mermaid is vendored and pinned at `mermaid@11.17.0`, served from the page's own origin.
+Mermaid is vendored and pinned at `mermaid@11.17.2`, served from the page's own origin.
 
 ```html
 <script src="/static/js/mermaid.min.js"></script>

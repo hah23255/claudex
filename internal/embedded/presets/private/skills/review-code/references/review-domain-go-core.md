@@ -34,12 +34,13 @@ Flag only the patterns below. A classic `for i := 0; i < n; i++` loop, a manual 
 | `wg.Go` over manual pairing | Grep for `wg.Add(1)` immediately preceding a `go func` |
 | Typed atomics | Grep for `atomic.AddInt`, `atomic.LoadInt`, `atomic.StoreInt`, `atomic.SwapInt` |
 | `errors.AsType` over the two-step | Grep for `errors.As(` |
+| `encoding/json/v2` in new code | Grep for `"encoding/json"`, `MarshalIndent`, and `json.RawMessage`; v1 accepts duplicate object member names and invalid UTF-8 that v2 rejects, so this is a behavior gap rather than a rename |
 
 ## Category 3: Dependencies
 
 | Check | How to verify |
 |---|---|
-| Every dependency is justified | Read `go.mod`; for each non-pre-approved entry, work out whether the standard library covers it. Flag only where a clear stdlib alternative exists |
+| Every dependency is justified | Read `go.mod`; for each non-pre-approved entry, work out whether the standard library covers it. Flag only where a clear stdlib alternative exists, as `uuid` now is for `google/uuid` |
 | Stack matches the project type | Read `go.mod` and compare the CLI-only packages present or absent against what the type calls for |
 | Nothing unused | Cross-reference `go.mod` requires against actual imports |
 | Versions current | Read `go.mod`, check each direct dependency against its latest stable release |

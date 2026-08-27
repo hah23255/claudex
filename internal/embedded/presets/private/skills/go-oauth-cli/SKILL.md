@@ -57,7 +57,9 @@ import (
     "context"
     "crypto/rand"
     "encoding/hex"
-    "encoding/json"
+    "encoding/json/jsontext"
+    "encoding/json/v2"
+    "errors"
     "fmt"
     "net"
     "net/http"
@@ -150,7 +152,7 @@ func loginWithCallback(config *oauth2.Config, state string) (*oauth2.Token, erro
 
     srv := &http.Server{Handler: mux}
     go func() {
-        if err := srv.Serve(listener); err != http.ErrServerClosed {
+        if err := srv.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
             errCh <- err
         }
     }()
@@ -273,7 +275,7 @@ func LoadToken() (*oauth2.Token, error) {
 }
 
 func SaveToken(token *oauth2.Token) error {
-    data, err := json.MarshalIndent(token, "", "  ")
+    data, err := json.Marshal(token, jsontext.WithIndent("  "))
     if err != nil {
         return fmt.Errorf("failed to marshal token: %w", err)
     }

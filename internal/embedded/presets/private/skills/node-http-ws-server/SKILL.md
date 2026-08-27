@@ -120,7 +120,7 @@ const MIME = {
     '.woff2': 'font/woff2',
 };
 
-export function route(req, res, config) {
+export async function route(req, res, config) {
     const url = new URL(req.url, 'http://localhost');
     try {
         if (url.pathname === '/api/health') {
@@ -129,7 +129,7 @@ export function route(req, res, config) {
         if (url.pathname.startsWith('/api/')) {
             return sendJSON(res, 404, { error: 'not found' });
         }
-        return serveStatic(url.pathname, res);
+        return await serveStatic(url.pathname, res);
     } catch (err) {
         console.error(`${new Date().toISOString()} ERROR ${req.method} ${url.pathname}: ${err.message}`);
         return sendJSON(res, 500, { error: 'internal error' });
@@ -163,6 +163,8 @@ function sendJSON(res, status, body) {
     res.end(JSON.stringify(body));
 }
 ```
+
+`route` is `async` and `await`s the static path inside its own `try`. A synchronous `try` around a returned promise never sees the rejection, and Node terminates the process on an unhandled one, so the boundary would exist in the source and not in the running program.
 
 `PUBLIC_DIR` ends in a separator, which is what makes `startsWith` on the normalized absolute path a real traversal guard: without the trailing separator, a sibling directory whose name shares the prefix would pass.
 
@@ -216,6 +218,6 @@ Feature modules return or throw and never call `process.exit`. `process.exit` an
 
 Task-style helpers such as storage, hashing, and parsing throw or return as they are, with no logging and no wrapping for its own sake. Letting the error keep its `code`, such as `ENOENT`, is what allows a caller to branch on it.
 
-The request handler is the boundary. It wraps the route body in `try`/`catch`, logs with an `ERROR` prefix, and sends a generic 500. A stack trace or an internal message in the response tells an attacker about paths and versions the page was never meant to disclose.
+`route` is the boundary. It wraps its body in `try`/`catch`, awaits everything async inside it, logs with an `ERROR` prefix, and sends a generic 500. A stack trace or an internal message in the response tells an attacker about paths and versions the page was never meant to disclose.
 
-Catching at the route boundary is what keeps an uncaught throw in an async handler from taking down the process. `process.on('uncaughtException')` is not part of normal control flow, since by the time it fires the process state is already unknown.
+Catching inside `route`, with an `await` on every async call it makes, is what keeps a rejected handler from taking down the process. `process.on('uncaughtException')` is not part of normal control flow, since by the time it fires the process state is already unknown.

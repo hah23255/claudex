@@ -260,7 +260,7 @@ func (h *Highway) saveState() error {
         Completed: slices.Collect(maps.Keys(h.completed)),
         Pending:   pendingJobs,
     }
-    data, err := json.MarshalIndent(state, "", "  ")
+    data, err := json.Marshal(state, jsontext.WithIndent("  "))
     if err != nil {
         return err
     }
@@ -309,7 +309,7 @@ type persistedState struct {
 type persistedJob struct {
     ID   string          `json:"id"`
     Type string          `json:"type"`
-    Data json.RawMessage `json:"data"`
+    Data jsontext.Value `json:"data"`
 }
 ```
 

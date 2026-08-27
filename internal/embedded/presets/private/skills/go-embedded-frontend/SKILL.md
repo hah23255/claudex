@@ -47,16 +47,16 @@ Every asset is pinned to an exact version. A floating `@latest` makes two builds
 | Asset | Version | Lands at |
 |---|---|---|
 | Tailwind browser build | `@tailwindcss/browser@4.3.3` | `js/tailwind.js` |
-| Lucide | `lucide@1.33.0` | `js/lucide.min.js` |
+| Lucide | `lucide@1.34.0` | `js/lucide.min.js` |
 | Font Awesome | `@fortawesome/fontawesome-free@7.3.1` | `fontawesome/css/`, `fontawesome/webfonts/` |
 | Dev Icons | `devicon@2.17.0` | `css/devicon.min.css` |
 | Inter | Google Fonts | `css/inter.css`, `fonts/*.woff2` |
 | Google Sans | Google Fonts | `css/google-sans.css`, `fonts/*.woff2` |
 | JetBrains Mono | Google Fonts | `css/jetbrains-mono.css`, `fonts/*.woff2` |
-| JetBrains Mono Nerd Font Mono | nerd-fonts `v3.5.0`, opt-in | `css/jetbrains-mono.css`, `fonts/*.woff2` |
-| Marked | `marked@18.0.10` | `js/marked.umd.js` |
+| JetBrains Mono Nerd Font Mono | nerd-fonts `v3.5.1`, opt-in | `css/jetbrains-mono.css`, `fonts/*.woff2` |
+| Marked | `marked@18.0.11` | `js/marked.umd.js` |
 | Highlight.js | `highlight.js@11.12.0` | `js/highlight.min.js`, `css/github-dark.min.css` |
-| Mermaid | `mermaid@11.17.0` | `js/mermaid.min.js` |
+| Mermaid | `mermaid@11.17.2` | `js/mermaid.min.js` |
 | Chart.js | `chart.js@4.5.1` | `js/chart.umd.js` |
 
 The three fonts are always downloaded, whether or not a given page uses all three, so the asset step is the same everywhere and a later design change needs no build change. Everything below them in the table is downloaded when the project actually uses it.
@@ -68,8 +68,11 @@ Only the `latin` and `latin-ext` blocks of each Google Fonts stylesheet are kept
 Font Awesome's stylesheet references its webfonts by a relative path that does not survive being served from `/static/`, so the asset step rewrites it:
 
 ```bash
-sed -i '' 's|../webfonts/|/static/fontawesome/webfonts/|g' fontawesome/css/all.min.css
+sed -i.bak 's|../webfonts/|/static/fontawesome/webfonts/|g' fontawesome/css/all.min.css
+rm -f fontawesome/css/all.min.css.bak
 ```
+
+`sed -i.bak` rather than `sed -i ''`, because the empty-argument form is BSD-only and the release workflow runs this on Linux.
 
 ## Fonts
 

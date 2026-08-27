@@ -96,6 +96,15 @@ func init() {
 
 The help and completion commands are hidden so `appname --help` lists only the commands the tool actually offers.
 
+A root declaring `cobra.Group`s needs one line more. The hidden help command still counts toward `AllChildCommandsHaveGroup` (`cobra@v1.10.2 command.go:1376-1383`), and leaving it ungrouped renders an empty `Additional Commands:` header:
+
+```go
+rootCmd.AddGroup(&cobra.Group{ID: "main", Title: "Main Commands:"})
+rootCmd.SetHelpCommandGroupID("main")
+```
+
+An ungrouped root needs nothing extra, since the usage template reaches that header only when `len .Groups` is non-zero.
+
 ## Root Command, Web Only
 
 ```go

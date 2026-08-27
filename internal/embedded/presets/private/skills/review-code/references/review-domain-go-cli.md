@@ -38,7 +38,7 @@ Several checks invert by project type: the same construct is required in CLI Onl
 | Flag names unique across the tree | Collect every registered flag name in `cmd/`; a name appearing on both a parent's `PersistentFlags` and a child's `Flags()` is shadowed silently |
 | Boolean shorthands | Grep `cmd/` for `BoolVarP` and `BoolVar`; a switch takes a long name only |
 | `SortFlags` untouched | Grep `cmd/` for `SortFlags`; the default of `true` is what `--help` should use |
-| `Args` on every command | Read each `cobra.Command` literal for an `Args` field; a command taking no positionals declares `cobra.NoArgs` rather than omitting it |
+| `Args` on every runnable command | Read each `cobra.Command` literal carrying a `Run` for an `Args` field; one taking no positionals declares `cobra.NoArgs` rather than omitting it. A command with no `Run` is not a finding, and `Args` on the root is: it disables the only unknown-command check a root with children has |
 | Enum flags validate at parse time | Grep each `Run` for a switch or an `if` rejecting a flag value; that check belongs in a `pflag.Value` registered with `Var` |
 | Flag relationships | Grep for `MarkFlagRequired`, `MarkFlagsRequiredTogether`, `MarkFlagsOneRequired`, and `MarkFlagsMutuallyExclusive`; read each `Run` for hand-rolled validation that should be one of them |
 | A prompted flag is not required | For each flag with a prompt behind it, check the command does not call `MarkFlagRequired` on it |
