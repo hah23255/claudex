@@ -73,7 +73,7 @@ Alpine remains viable for those cases only with a deliberate musl matrix: a musl
 ## Go Template
 
 ```dockerfile
-FROM --platform=$BUILDPLATFORM golang:1.26.7-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27.0-alpine AS builder
 
 WORKDIR /app
 
@@ -225,4 +225,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 |---|---|
 | `[APP_NAME]` | the application name and binary or entry file |
 | `[GITHUB_USER]` | the image namespace |
-| `1.26.7`, `3.24.1`, `trixie`, `24.20.0` | the current pinned versions, checked rather than assumed |
+| `1.27.0`, `3.24.1`, `trixie`, `24.20.0` | the current pinned versions, checked rather than assumed |

@@ -1,14 +1,16 @@
 ---
 name: go-idioms
-description: Modern Go 1.26+ idioms and dependency selection, applied to every Go file written or reviewed. Use when writing or refactoring any Go code, when choosing between a standard-library helper and a hand-rolled loop, or when adding, auditing, or upgrading a dependency in go.mod. Triggers on interface{}, wg.Add, errors.As, atomic.LoadInt32, manual index loops, sync.Once, time.Now().Sub, and on any go.mod change.
+description: Modern Go 1.27+ idioms and dependency selection, applied to every Go file written or reviewed. Use when writing or refactoring any Go code, when reading or writing JSON, when choosing between a standard-library helper and a hand-rolled loop, or when adding, auditing, or upgrading a dependency in go.mod. Triggers on interface{}, wg.Add, errors.As, atomic.LoadInt32, manual index loops, sync.Once, time.Now().Sub, encoding/json, json.MarshalIndent, json.NewDecoder, google/uuid, and on any go.mod change.
 user-invocable: false
 ---
 
 # Go Idioms
 
-**The Go 1.26+ baseline every file in these projects is written to, and how a dependency earns its place in `go.mod`.**
+**The Go 1.27+ baseline every file in these projects is written to, and how a dependency earns its place in `go.mod`.**
 
-The `go` directive reads `go 1.26` or newer on every project. There is no version detection and no fallback path, so a current idiom is always available and an outdated one is always a choice.
+The `go` directive reads `go 1.27` or newer on every project. There is no version detection and no fallback path, so a current idiom is always available and an outdated one is always a choice. `go test` runs the `stdversion` vet check by default, so a symbol newer than the directive is reported rather than discovered by a user on an older toolchain.
+
+`go fix` applies part of this file mechanically: `atomictypes` moves `sync/atomic` calls onto the typed atomics, and `waitgroupgo` rewrites an `Add`, `go`, `Done` trio into `wg.Go`.
 
 ## Types and Built-ins
 
@@ -115,6 +117,36 @@ for part := range strings.SplitSeq(s, ",") {
 }
 ```
 
+`strings.CutLast` and `bytes.CutLast` cut around the last occurrence instead of the first, replacing a `LastIndex` plus the two slice expressions that have to agree with it.
+
+## JSON
+
+`encoding/json/v2` is what new code imports, with `encoding/json/jsontext` supplying the options that shape the output. The import binds the identifier `json`, so the call sites read as they always did.
+
+```go
+import (
+    "encoding/json/jsontext"
+    "encoding/json/v2"
+)
+
+data, err := json.Marshal(state, jsontext.WithIndent("  "))
+```
+
+There is no `MarshalIndent` in v2, because indentation is an option rather than a second function. `json.RawMessage` is gone too, and a field holding a raw JSON value takes `jsontext.Value`.
+
+`MarshalWrite` and `UnmarshalRead` take an `io.Writer` and an `io.Reader` directly, which removes the `Encoder` or `Decoder` built to carry a single value:
+
+```go
+if err := json.UnmarshalRead(resp.Body, &payload); err != nil {
+    return err
+}
+return json.MarshalWrite(w, result)
+```
+
+v2 rejects a duplicate object member name and invalid UTF-8 inside a string, both of which v1 accepts silently. A state file or an endpoint that was tolerating either starts reporting it.
+
+`encoding/json` keeps working and is now backed by the v2 implementation, so an existing file already gets the faster unmarshal without being rewritten.
+
 ## time
 
 `time.Since(start)` and `time.Until(deadline)` replace the `Sub` forms, which read backwards.
@@ -151,7 +183,9 @@ These are always fine:
 
 Web Only and Headless API Service projects have no terminal UI, so bubbletea, lipgloss, and bubbles do not appear in their `go.mod` at all. zerolog does, since every project type logs through it.
 
-Anything else is acceptable when it fills a genuine need the standard library cannot reasonably cover: `google/uuid`, database drivers, cloud SDK clients, `golang.org/x/...`. Judge whether the dependency is justified rather than whether it appears on a list, because a fixed allow-list either blocks legitimate work or grows until it means nothing.
+Anything else is acceptable when it fills a genuine need the standard library cannot reasonably cover: database drivers, cloud SDK clients, `golang.org/x/...`. Judge whether the dependency is justified rather than whether it appears on a list, because a fixed allow-list either blocks legitimate work or grows until it means nothing.
+
+`google/uuid` is not one of them any more. The standard library's `uuid` package covers `New`, `NewV7` for a time-ordered identifier, `Parse`, and `MustParse`.
 
 Prefer the well-maintained standard choice over the niche alternative (`zerolog` over `logrus`, `cobra` over `urfave/cli`), since the standard choice is the one whose breaking changes are documented and whose issues are already answered.
 

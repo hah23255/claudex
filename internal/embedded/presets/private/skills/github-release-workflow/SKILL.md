@@ -83,7 +83,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version: '1.27'
 
       # //go:embed static needs the tree populated before anything compiles.
       # Delete this step for CLI Only.
@@ -159,7 +159,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version: '1.27'
 
       # Delete this step for CLI Only.
       - name: Download assets
