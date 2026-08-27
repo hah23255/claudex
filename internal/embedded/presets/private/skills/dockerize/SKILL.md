@@ -134,7 +134,7 @@ WORKDIR /app
 
 # Vendor the runtime so the final stage depends on no installed node. Node names
 # amd64 "x64", so TARGETARCH is translated rather than interpolated directly.
-ARG NODE_VERSION=24.19.0
+ARG NODE_VERSION=24.20.0
 ARG TARGETARCH
 RUN NODE_ARCH="$(test "$TARGETARCH" = amd64 && echo x64 || echo "$TARGETARCH")" \
     && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" \
@@ -225,4 +225,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 |---|---|
 | `[APP_NAME]` | the application name and binary or entry file |
 | `[GITHUB_USER]` | the image namespace |
-| `1.26.7`, `3.24.1`, `trixie`, `24.19.0` | the current pinned versions, checked rather than assumed |
+| `1.26.7`, `3.24.1`, `trixie`, `24.20.0` | the current pinned versions, checked rather than assumed |

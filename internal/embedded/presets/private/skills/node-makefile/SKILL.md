@@ -50,7 +50,7 @@ The Nerd Font variant is off by default. It exists only for a page that renders 
 # =============================================================================
 APP_NAME     := [APP_NAME]
 VERSION      ?= dev-build
-NODE_VERSION := 24.19.0
+NODE_VERSION := 24.20.0
 
 PUBLIC_DIR := public
 VENDOR_DIR := $(PUBLIC_DIR)/vendor
@@ -58,7 +58,7 @@ CSS_DIR    := $(PUBLIC_DIR)/css
 FONTS_DIR  := $(PUBLIC_DIR)/fonts
 STAMP      := $(PUBLIC_DIR)/.vendor-stamp
 
-NERDFONT_VERSION := 3.5.0
+NERDFONT_VERSION := 3.5.1
 
 # Only a page that renders Nerd Font glyphs needs 1 here.
 NERDFONT := 0

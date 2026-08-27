@@ -54,14 +54,14 @@ GOARCH  ?= $(shell go env GOARCH)
 
 # Pinned asset versions. Bump deliberately, never float.
 TAILWIND_VERSION    := 4.3.3
-LUCIDE_VERSION      := 1.33.0
+LUCIDE_VERSION      := 1.34.0
 FONTAWESOME_VERSION := 7.3.1
 DEVICON_VERSION     := 2.17.0
-MARKED_VERSION      := 18.0.10
+MARKED_VERSION      := 18.0.11
 HIGHLIGHTJS_VERSION := 11.12.0
-MERMAID_VERSION     := 11.17.0
+MERMAID_VERSION     := 11.17.2
 CHARTJS_VERSION     := 4.5.1
-NERDFONT_VERSION    := 3.5.0
+NERDFONT_VERSION    := 3.5.1
 
 # Only a page that renders Nerd Font glyphs needs 1 here.
 NERDFONT := 0

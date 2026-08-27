@@ -218,7 +218,7 @@ The Node workflow is the same five phases with different build steps. The matrix
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 24.19.0
+          node-version: 24.20.0
       - run: npm_config_build_from_source=true npm ci
       - run: node --test
 
@@ -238,7 +238,7 @@ The Node workflow is the same five phases with different build steps. The matrix
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 24.19.0
+          node-version: 24.20.0
 
       - name: Install deps, compiling the addon from source
         run: npm_config_build_from_source=true npm ci

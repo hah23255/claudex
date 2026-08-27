@@ -8,7 +8,7 @@ user-invocable: false
 
 **Marked parses, Highlight.js colors the code, Lucide draws the callout icons, and one CSS block styles everything in Catppuccin Mocha.**
 
-The libraries are vendored and pinned, never loaded from a CDN at run time: `marked@18.0.10`, `highlight.js@11.12.0` with its `github-dark` theme.
+The libraries are vendored and pinned, never loaded from a CDN at run time: `marked@18.0.11`, `highlight.js@11.12.0` with its `github-dark` theme.
 
 ```html
 <script src="/static/js/marked.umd.js"></script>
