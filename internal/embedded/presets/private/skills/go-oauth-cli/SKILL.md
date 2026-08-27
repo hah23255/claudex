@@ -57,7 +57,8 @@ import (
     "context"
     "crypto/rand"
     "encoding/hex"
-    "encoding/json"
+    "encoding/json/jsontext"
+    "encoding/json/v2"
     "errors"
     "fmt"
     "net"
@@ -274,7 +275,7 @@ func LoadToken() (*oauth2.Token, error) {
 }
 
 func SaveToken(token *oauth2.Token) error {
-    data, err := json.MarshalIndent(token, "", "  ")
+    data, err := json.Marshal(token, jsontext.WithIndent("  "))
     if err != nil {
         return fmt.Errorf("failed to marshal token: %w", err)
     }
