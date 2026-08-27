@@ -68,7 +68,7 @@ Config ships as `config.example.json` and a user's `config.json` is merged over 
   },
   "devDependencies": {
     "@tailwindcss/browser": "4.3.3",
-    "lucide": "1.33.0"
+    "lucide": "1.34.0"
   }
 }
 ```
@@ -80,7 +80,7 @@ Tailwind and Lucide are development dependencies because nothing in `src/` impor
 `.node-version` pins the version for `fnm`, `nvm`, CI, and anything else that reads it:
 
 ```
-24.19.0
+24.20.0
 ```
 
 Pinning an exact version rather than a major keeps a native addon compiled against the same ABI everywhere.
@@ -107,7 +107,7 @@ Top-level `await` replaces an IIFE wrapper, since ESM modules support it directl
 
 ## Logging
 
-`console.*` with manual level prefixes, timestamped and sequential, with no color and no logging dependency. This is the same discipline Go Web Only projects apply with the standard `log` package, and for the same reason: container logs are collected by something that neither interprets ANSI codes nor cares about structured fields.
+`console.*` with manual level prefixes, timestamped and sequential, with no color and no logging dependency. Go Web Only projects reach the same destination through zerolog, and the reason is shared: container logs are collected by something that neither interprets ANSI codes nor cares about a styled glyph.
 
 ```js
 const ts = () => new Date().toISOString();

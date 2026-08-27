@@ -13,7 +13,9 @@ user-invocable: false
 | Pure JS, no native addons, and one file is wanted | a compiled binary |
 | Any native addon present, or neither binary path fits cleanly | a runtime-bundled tarball |
 
-Compiled `.node` addons are the deciding factor: neither Bun nor Node SEA embeds one reliably, because the embedder bundles JavaScript into its own virtual filesystem and a native module has to be a real file the dynamic loader can open. The tarball always works and is the fallback whenever the answer is unclear.
+Compiled `.node` addons are the deciding factor, because the embedder bundles JavaScript into its own virtual filesystem and a native module has to be a real file the dynamic loader can open. Bun does not embed one. Node SEA carries it as an entry in the config's `assets` map, which the entry script then writes to a temp file and loads with `process.dlopen()`, so the addon is unpacked on every start and a blob produced by `postject` inside a Linux arm64 container crashes on that call.
+
+The tarball keeps the addon a real file on disk with no unpacking step, so it stays the choice whenever one is present and the fallback whenever the answer is unclear.
 
 ## Path 1: A Compiled Binary
 
@@ -48,9 +50,24 @@ The resulting binary runs on JavaScriptCore rather than V8, so behavior can diff
 
 Stays on V8, which removes the engine question entirely.
 
+`--build-sea=config` generates the executable in one step, but it arrived in Node v25.5.0 at stability 1.1 and is absent from the Node 24 baseline these projects pin:
+
 ```bash
-node --build-sea build/[APP_NAME].cjs --output dist/[APP_NAME]
+node --build-sea=sea-config.json
 ```
+
+On Node 24 the same result takes the older two-step sequence, writing the preparation blob and injecting it with `postject`:
+
+```bash
+node --experimental-sea-config sea-config.json
+cp "$(command -v node)" dist/[APP_NAME]
+codesign --remove-signature dist/[APP_NAME]   # macOS only
+npx postject dist/[APP_NAME] NODE_SEA_BLOB sea-prep.blob \
+  --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 \
+  --macho-segment-name NODE_SEA               # macOS only
+```
+
+The signature is removed before injection and the segment name is passed on macOS only. Skipping either produces a binary that builds and then refuses to run.
 
 SEA takes a single CommonJS entry, so an ESM project bundles first:
 
@@ -66,7 +83,7 @@ import { getAsset } from 'node:sea';
 const html = getAsset('index.html', 'utf8');
 ```
 
-SEA does not cross-compile, so each target builds on a matching runner. Older Node versions need the manual blob plus `postject` injection instead of `--build-sea`.
+SEA does not cross-compile, so each target builds on a matching runner.
 
 Bun cross-compiles from one host but changes engine; SEA keeps the engine but needs a runner per platform and a bundling step. Pick on which of those two costs the project can absorb.
 
@@ -91,7 +108,7 @@ A per-platform `.tar.gz` carrying the Node runtime, the compiled native addon, t
 #!/usr/bin/env bash
 set -euo pipefail
 OS="$1"; ARCH="$2"
-NODE_VERSION="24.19.0"
+NODE_VERSION="24.20.0"
 [ "$OS" = "darwin" ] && NODE_EXT="tar.gz" || NODE_EXT="tar.xz"
 NODE_PKG="node-v${NODE_VERSION}-${OS}-${ARCH}"
 BUNDLE="dist/[APP_NAME]-${OS}-${ARCH}"
@@ -103,7 +120,7 @@ mkdir -p "$BUNDLE/runtime/bin" "$BUNDLE/lib" "$BUNDLE/bin"
 cp "${NODE_PKG}/bin/node" "$BUNDLE/runtime/bin/node"
 
 # The compiled .node addon and any helper binary ride along inside node_modules.
-cp -R bin/. src/. public/. node_modules/. "$BUNDLE/lib/"
+cp -R bin src public node_modules "$BUNDLE/lib/"
 cp launcher/[APP_NAME] "$BUNDLE/bin/[APP_NAME]"
 chmod +x "$BUNDLE/bin/[APP_NAME]"
 
