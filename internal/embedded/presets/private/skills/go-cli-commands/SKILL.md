@@ -79,7 +79,7 @@ The hand-rolled equivalent inside `Run` rejects the same combination several lin
 
 ## Positional Arguments
 
-Every command sets `Args`, including the ones taking none. Cobra falls back to `ArbitraryArgs` when `Args` is nil (`cobra@v1.10.2 command.go:1172-1177`), so a command silently swallowing a mistyped subcommand name as a positional and ignoring it is what a project gets by default.
+Every command carrying a `Run` sets `Args`, including the ones taking none. Cobra falls back to `ArbitraryArgs` when `Args` is nil (`cobra@v1.10.2 command.go:1172-1177`), so a command silently swallowing a mistyped subcommand name as a positional and ignoring it is what a project gets by default.
 
 | The command takes | `Args` |
 |---|---|
@@ -88,7 +88,9 @@ Every command sets `Args`, including the ones taking none. Cobra falls back to `
 | between n and m | `cobra.RangeArgs(n, m)` |
 | one value drawn from a known set | `cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs)` |
 
-A parent command that only groups subcommands takes `cobra.NoArgs` beside its missing `Run`, so `appname feature bogus` reports an unknown subcommand rather than printing help and exiting zero.
+A command that only groups subcommands leaves `Args` nil, because having no `Run` is exactly what puts `cobra.NoArgs` out of reach. `execute` returns `flag.ErrHelp` for a non-runnable command (`cobra@v1.10.2 command.go:955-957`) before it reaches `ValidateArgs` at `:968`, and `ExecuteC` renders that as help text with a nil error (`command.go:1152-1154`), so `appname feature bogus` prints help and exits zero either way.
+
+On the root, `Args` is worse than inert. `Find` calls `legacyArgs` only when `Args` is nil (`cobra@v1.10.2 command.go:775-777`), and that call is the only thing reporting an unknown command on a root with children, so `rootCmd.Args = cobra.NoArgs` turns `appname bogus` from an error into help text and exit zero.
 
 ## Enum Flags
 
