@@ -58,6 +58,7 @@ import (
     "crypto/rand"
     "encoding/hex"
     "encoding/json"
+    "errors"
     "fmt"
     "net"
     "net/http"
@@ -150,7 +151,7 @@ func loginWithCallback(config *oauth2.Config, state string) (*oauth2.Token, erro
 
     srv := &http.Server{Handler: mux}
     go func() {
-        if err := srv.Serve(listener); err != http.ErrServerClosed {
+        if err := srv.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
             errCh <- err
         }
     }()

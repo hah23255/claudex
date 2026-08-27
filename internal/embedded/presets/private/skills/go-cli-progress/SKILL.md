@@ -200,8 +200,9 @@ The caller runs a ticking goroutine that owns the line:
 ```go
 done := make(chan struct{})
 var printed atomic.Bool
+var wg sync.WaitGroup
 
-go func() {
+wg.Go(func() {
     ticker := time.NewTicker(1 * time.Second)
     defer ticker.Stop()
     firstTick := true
@@ -218,11 +219,12 @@ go func() {
             utils.PrintProgress("video-3.mp4", currentPercent)
         }
     }
-}()
+})
 
 encode(input, output)
 
 close(done)
+wg.Wait()
 if printed.Load() {
     utils.ClearPreviousLine()
 }
@@ -233,7 +235,7 @@ utils.PrintIndentedSuccess("video-3.mp4: encoded")
 
 One progress line is active at a time, since two goroutines clearing lines will each erase the other's output.
 
-The goroutine owns the line while it runs. The main goroutine closes `done` and clears the final line only after the goroutine has exited, because clearing while it is still ticking races with its next write.
+The goroutine owns the line while it runs. The main goroutine closes `done`, waits on `wg` until the goroutine has returned, and only then clears the final line, because `close(done)` alone does not interrupt a tick already inside `PrintProgress`.
 
 The `atomic.Bool` guards that final clear. Work that finishes before the first tick means the goroutine never printed, and clearing unconditionally would eat whatever line was above it.
 
