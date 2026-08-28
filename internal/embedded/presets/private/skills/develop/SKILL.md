@@ -26,7 +26,7 @@ State in one line what is being built or changed, then classify it.
 
 **Work type**: new project, feature, refactor, bug fix, infrastructure, docs.
 
-**Command surface**, when the work adds or changes one. The baseline is `tool <command> <args> --flags` and nothing more. An interactive prompt, stdin eligibility on a flag, and a `<thing>-file` variant are offered here and waited on rather than built, because each adds a path every later change has to keep working and the user is the one who decides to own that.
+**Command surface**, when the work adds or changes one. The baseline is `tool <command> <args> --flags`, plus a `<thing>-file` flag wherever the value can arrive as a file. An interactive prompt and stdin eligibility on a flag are offered here and waited on rather than built, because each adds a path every later change has to keep working and the user is the one who decides to own that.
 
 ## Step 2: Select and read the governing skills
 
