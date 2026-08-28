@@ -36,7 +36,7 @@ Each release carries `claudex-linux-amd64`, `claudex-linux-arm64`, `claudex-darw
 
 ### From source
 
-Needs Go 1.26.
+Needs Go 1.27.
 
 ```bash
 git clone https://github.com/tanq16/claudex.git
@@ -99,7 +99,7 @@ claudex apply-preset            # multi-select picker
 claudex apply-preset private    # by name; several names apply in order
 ```
 
-`-s/--skills` links only the skills and leaves `AGENTS.md` alone. `-a/--agents` writes only the section and links no skills. Neither flag applies the whole preset; passing one narrows the run to that half.
+`--skills` links only the skills and leaves `AGENTS.md` alone. `--agents` writes only the section and links no skills. Neither flag applies the whole preset; passing one narrows the run to that half.
 
 One preset ships in the binary. `private` carries 31 skills covering Go and Node conventions, containers, release workflows, and testing, plus the author's development, pull request, and operating rules as an `AGENTS.md` section.
 
@@ -137,7 +137,7 @@ The new-or-resume prompt only appears when this project has sessions, and the ac
 
 ### status
 
-Per account, the 5h session window and the 7d windows as bars with their reset times. It reads the account's OAuth token from the macOS Keychain or from `.credentials.json` and queries Anthropic's usage endpoint, so an expired token shows as a prompt to open Claude Code on that account. `-j/--json` prints the raw numbers, `-A` limits it to one account.
+Per account, the 5h session window and the 7d windows as bars with their reset times. It reads the account's OAuth token from the macOS Keychain or from `.credentials.json` and queries Anthropic's usage endpoint, so an expired token shows as a prompt to open Claude Code on that account. `--json` prints the raw numbers, `-A` limits it to one account.
 
 ### switch
 
@@ -147,7 +147,7 @@ The picker lists this project's sessions from every account, under a row that ta
 
 ### oauth-token
 
-Runs the OAuth PKCE flow in a browser and prints an access token to stdout. `-p/--port` sets the local callback port and `-e/--expires-in` the requested expiry in seconds, which the server may override.
+Runs the OAuth PKCE flow in a browser and prints an access token to stdout. `-p/--port` pins the local callback port, which defaults to one the OS picks, and `-e/--expires-in` sets the requested expiry in seconds, which the server may override. `--manual` prints the authorize URL instead of opening a browser and takes the code pasted back, for a machine with no browser to hand off to. Status lines and the URL are printed only when stdout is a terminal, so `TOKEN=$(claudex oauth-token)` still captures the token alone.
 
 ## Notes
 
