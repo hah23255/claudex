@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,29 +10,35 @@ import (
 	"runtime"
 
 	"github.com/spf13/cobra"
-	"github.com/tanq16/claudex/internal/oauth"
+	"github.com/tanq16/claudex/internal/auth"
 	u "github.com/tanq16/claudex/utils"
 )
 
 var oauthTokenFlags struct {
 	port      int
 	expiresIn int
+	manual    bool
 }
 
 var oauthTokenCmd = &cobra.Command{
 	Use:   "oauth-token",
 	Short: "Obtain a Claude OAuth access token via PKCE flow",
 	Long:  "Opens a browser for Claude authentication using OAuth 2.0 PKCE flow and prints the access token to stdout.",
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 		defer stop()
 
-		cfg := oauth.Config{
+		cfg := auth.Config{
 			Port:      oauthTokenFlags.port,
 			ExpiresIn: oauthTokenFlags.expiresIn,
+			Manual:    oauthTokenFlags.manual,
 		}
 
-		token, err := oauth.RunFlow(ctx, cfg, openBrowser)
+		token, err := auth.Login(ctx, cfg, openBrowser)
+		if errors.Is(err, u.ErrNoTerminal) {
+			u.PrintFatal("oauth-token --manual needs an interactive terminal to paste the code into", nil)
+		}
 		if err != nil {
 			u.PrintFatal("OAuth flow failed", err)
 		}
@@ -50,17 +57,17 @@ func openBrowser(url string) error {
 	case "windows":
 		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
 	default:
-		u.PrintWarn("Cannot auto-open browser. Open this URL manually:", nil)
-		u.PrintGeneric(url)
-		return nil
+		return fmt.Errorf("no browser launcher for %s", runtime.GOOS)
 	}
-	if err := cmd.Start(); err != nil {
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s: %w", cmd.Args[0], err)
 	}
 	return nil
 }
 
 func init() {
-	oauthTokenCmd.Flags().IntVarP(&oauthTokenFlags.port, "port", "p", oauth.DefaultPort, "Local port for OAuth callback server")
-	oauthTokenCmd.Flags().IntVarP(&oauthTokenFlags.expiresIn, "expires-in", "e", oauth.DefaultExpiresIn, "Requested token expiry in seconds (server may override)")
+	oauthTokenCmd.Flags().IntVarP(&oauthTokenFlags.port, "port", "p", 0, "Local port for the OAuth callback server (0 picks a free one)")
+	oauthTokenCmd.Flags().IntVarP(&oauthTokenFlags.expiresIn, "expires-in", "e", auth.DefaultExpiresIn, "Requested token expiry in seconds (server may override)")
+	oauthTokenCmd.Flags().BoolVar(&oauthTokenFlags.manual, "manual", false, "Print the authorize URL and paste the code back, instead of running a callback server")
+	oauthTokenCmd.MarkFlagsMutuallyExclusive("port", "manual")
 }
