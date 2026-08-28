@@ -50,7 +50,7 @@ func runApplyPreset(cmd *cobra.Command, args []string) {
 	for _, name := range selected {
 		p, err := workspace.FindPreset(dir, name)
 		if err != nil {
-			fatal("preset not found: "+name, err)
+			u.PrintFatal("preset not found: "+name, err)
 		}
 		presets = append(presets, p)
 		if skills {
@@ -64,14 +64,14 @@ func runApplyPreset(cmd *cobra.Command, args []string) {
 	for _, p := range presets {
 		if skills {
 			if err := workspace.LinkSkills(root, p.SkillsDir(), p.Skills); err != nil {
-				fatal("failed to link the skills of preset "+p.Name, err)
+				u.PrintFatal("failed to link the skills of preset "+p.Name, err)
 			}
 		}
 		partial := ""
 		if agents {
 			if partial = p.Partial(); partial != "" {
 				if err := workspace.UpsertSection(root, p.Name, partial); err != nil {
-					fatal("failed to write the AGENTS.md section of preset "+p.Name, err)
+					u.PrintFatal("failed to write the AGENTS.md section of preset "+p.Name, err)
 				}
 			}
 		}
@@ -90,7 +90,6 @@ func runApplyPreset(cmd *cobra.Command, args []string) {
 	}
 }
 
-// Neither flag applies the whole preset; either one narrows the run to that half.
 func presetParts(skillsFlag, agentsFlag bool) (skills, agents bool) {
 	if !skillsFlag && !agentsFlag {
 		return true, true
@@ -132,6 +131,6 @@ func choosePresets(available []workspace.Preset) []string {
 }
 
 func init() {
-	applyPresetCmd.Flags().BoolVarP(&applyPresetFlags.skills, "skills", "s", false, "Link only the preset's skills, leaving AGENTS.md alone")
-	applyPresetCmd.Flags().BoolVarP(&applyPresetFlags.agents, "agents", "a", false, "Write only the preset's AGENTS.md section, linking no skills")
+	applyPresetCmd.Flags().BoolVar(&applyPresetFlags.skills, "skills", false, "Link only the preset's skills, leaving AGENTS.md alone")
+	applyPresetCmd.Flags().BoolVar(&applyPresetFlags.agents, "agents", false, "Write only the preset's AGENTS.md section, linking no skills")
 }

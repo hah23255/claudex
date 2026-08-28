@@ -20,7 +20,7 @@ func runCreatePreset(cmd *cobra.Command, args []string) {
 
 	dir, err := workspace.ScaffoldPreset(presetsDir(), name)
 	if err != nil {
-		fatal("failed to scaffold the preset", err)
+		u.PrintFatal("failed to scaffold the preset", err)
 	}
 
 	u.PrintSuccess("Created preset: " + name)

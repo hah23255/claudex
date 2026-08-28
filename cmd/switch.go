@@ -16,12 +16,12 @@ var switchFlags struct {
 	session string
 }
 
-// NoArgs so a mistyped "switch <id>" errors instead of silently moving every session.
 var switchCmd = &cobra.Command{
 	Use:   "switch",
 	Short: "Move the current project's sessions to another account",
-	Args:  cobra.NoArgs,
-	Run:   runSwitch,
+	// NoArgs so a mistyped "switch <id>" errors instead of silently moving every session.
+	Args: cobra.NoArgs,
+	Run:  runSwitch,
 }
 
 func runSwitch(cmd *cobra.Command, args []string) {

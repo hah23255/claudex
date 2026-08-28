@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/tanq16/claudex/internal/fsutil"
 )
 
 const (
@@ -65,7 +67,6 @@ func LinkSkills(root, srcDir string, names []string) error {
 	return nil
 }
 
-// An empty name addresses the base block; anything else addresses a preset's.
 func UpsertSection(root, name, content string) error {
 	path := filepath.Join(root, AgentsFile)
 	body, err := os.ReadFile(path)
@@ -73,7 +74,7 @@ func UpsertSection(root, name, content string) error {
 		return err
 	}
 	open, closing := markers(name)
-	return writeFileAtomic(path, []byte(upsert(string(body), open, closing, content)), 0o644)
+	return writeFileAtomic(path, []byte(upsert(string(body), open, closing, content)), projectModes.file)
 }
 
 func Clean(root string) error {
@@ -103,7 +104,7 @@ func cleanAgentsFile(root string) error {
 	if strings.TrimSpace(rest) == "" {
 		return os.Remove(path)
 	}
-	return writeFileAtomic(path, []byte(rest), 0o644)
+	return writeFileAtomic(path, []byte(rest), projectModes.file)
 }
 
 func markers(name string) (open, closing string) {
@@ -209,7 +210,7 @@ func WriteGitExclude(root string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	return writeFileAtomic(path, []byte(body+block), 0o644)
+	return writeFileAtomic(path, []byte(body+block), projectModes.file)
 }
 
 func StripGitExclude(root string) error {
@@ -222,7 +223,7 @@ func StripGitExclude(root string) error {
 	if stripped == body {
 		return nil
 	}
-	return writeFileAtomic(path, []byte(stripped), 0o644)
+	return writeFileAtomic(path, []byte(stripped), projectModes.file)
 }
 
 func stripExcludeBlock(body string) string {
@@ -237,7 +238,6 @@ func stripExcludeBlock(body string) string {
 	return head + strings.TrimLeft(tail, "\n")
 }
 
-// Exclude patterns are anchored at the worktree root, so applying inside a subdirectory has to carry it in every entry; both paths are resolved first because git reports the root with symlinks resolved and the working directory may not be.
 func gitExcludePath(root string) (path, prefix string, ok bool) {
 	out, err := exec.Command("git", "-C", root, "rev-parse", "--absolute-git-dir", "--show-toplevel").Output()
 	if err != nil {
@@ -247,6 +247,7 @@ func gitExcludePath(root string) (path, prefix string, ok bool) {
 	if len(lines) != 2 {
 		return "", "", false
 	}
+	// git reports the worktree root with symlinks resolved and the working directory may not be.
 	rel, err := filepath.Rel(resolve(lines[1]), resolve(root))
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", "", false
@@ -274,16 +275,8 @@ func readFile(path string) string {
 }
 
 func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), projectModes.dir); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, mode); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	return nil
+	return fsutil.WriteFileAtomic(path, data, mode)
 }

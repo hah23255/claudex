@@ -1,42 +1,59 @@
 package cmd
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
+	"github.com/tanq16/claudex/internal/accounts"
 	"github.com/tanq16/claudex/internal/plugins"
 	u "github.com/tanq16/claudex/utils"
 )
 
 const resumeListLimit = 10
 
+var mcpModes = []string{"mcps", "connectors", "none"}
+
+type mcpMode string
+
+func (m *mcpMode) String() string { return string(*m) }
+
+func (m *mcpMode) Type() string { return strings.Join(mcpModes, "|") }
+
+func (m *mcpMode) Set(v string) error {
+	if !slices.Contains(mcpModes, v) {
+		return fmt.Errorf("must be one of %s", strings.Join(mcpModes, ", "))
+	}
+	*m = mcpMode(v)
+	return nil
+}
+
 var launchFlags struct {
 	account    string
-	mcp        string
+	mcp        mcpMode
 	newSession bool
 	resume     bool
 	session    string
 }
 
-// NoArgs so a stray positional (e.g. "--resume <id>" typed for "--session <id>")
-// errors instead of being silently ignored.
 var launchCmd = &cobra.Command{
 	Use:   "launch",
 	Short: "Launch a Claude Code session with interactive config selection",
-	Args:  cobra.NoArgs,
-	Run:   runLaunch,
+	// NoArgs so a stray positional such as "--resume <id>" typed for "--session <id>" errors instead of being ignored.
+	Args: cobra.NoArgs,
+	Run:  runLaunch,
 }
 
 func init() {
 	launchCmd.Flags().StringVarP(&launchFlags.account, "account", "A", "",
 		"Account to launch under (skips the account picker)")
-	launchCmd.Flags().StringVar(&launchFlags.mcp, "mcp", "",
-		`MCP mode: "mcps", "connectors", or "none" (skips the MCP picker)`)
+	launchCmd.Flags().Var(&launchFlags.mcp, "mcp", "MCP sources to load (skips the MCP picker)")
 	launchCmd.Flags().BoolVar(&launchFlags.newSession, "new", false,
 		"Start a new session (skip the new/resume prompt)")
 	launchCmd.Flags().BoolVar(&launchFlags.resume, "resume", false,
@@ -51,10 +68,6 @@ func runLaunch(cmd *cobra.Command, args []string) {
 		u.PrintFatal("launch requires an interactive terminal", nil)
 	}
 
-	if launchFlags.mcp != "" && launchFlags.mcp != "mcps" && launchFlags.mcp != "connectors" && launchFlags.mcp != "none" {
-		u.PrintFatal(`--mcp must be one of "mcps", "connectors", or "none"`, nil)
-	}
-
 	claudePath, err := exec.LookPath("claude")
 	if err != nil {
 		u.PrintFatal("claude not found in PATH", err)
@@ -65,12 +78,12 @@ func runLaunch(cmd *cobra.Command, args []string) {
 		u.PrintFatal("failed to resolve current directory", err)
 	}
 
-	accounts := u.DiscoverAccountPaths()
-	sessions := discoverSessions(accounts, cwd)
+	accountDirs := u.DiscoverAccountPaths()
+	sessions := discoverSessions(accountDirs, cwd)
 	if len(sessions) > resumeListLimit {
 		sessions = sessions[:resumeListLimit]
 	}
-	multiAccount := len(accounts) > 1
+	multiAccount := len(accountDirs) > 1
 
 	resumeID := launchFlags.session
 	resumeSet := launchFlags.resume || resumeID != ""
@@ -138,10 +151,10 @@ func runLaunch(cmd *cobra.Command, args []string) {
 		summary = append(summary, "resume", s.project, u.AbbreviatePath(s.configDir))
 	} else {
 		if launchFlags.account != "" {
-			account = resolveAccountFlag(launchFlags.account, accounts)
+			account = resolveAccountFlag(launchFlags.account, accountDirs)
 		} else if multiAccount {
-			acctLabels := make([]string, len(accounts))
-			for i, a := range accounts {
+			acctLabels := make([]string, len(accountDirs))
+			for i, a := range accountDirs {
 				acctLabels[i] = u.AbbreviatePath(a)
 			}
 			idx, err := u.PromptSelect("Account", acctLabels)
@@ -151,15 +164,15 @@ func runLaunch(cmd *cobra.Command, args []string) {
 			if idx < 0 {
 				return
 			}
-			account = accounts[idx]
+			account = accountDirs[idx]
 		} else {
-			account = accounts[0]
+			account = accountDirs[0]
 		}
 		summary = append(summary, u.AbbreviatePath(account))
 		cliArgs = []string{"claude"}
 	}
 
-	mode := launchFlags.mcp
+	mode := string(launchFlags.mcp)
 	if mode == "" {
 		mcpIdx, err := u.PromptSelect("MCP + Connectors", []string{
 			"MCPs only",
@@ -172,7 +185,7 @@ func runLaunch(cmd *cobra.Command, args []string) {
 		if mcpIdx < 0 {
 			return
 		}
-		mode = []string{"mcps", "connectors", "none"}[mcpIdx]
+		mode = mcpModes[mcpIdx]
 	}
 	cliArgs, summary = applyMCPMode(mode, cliArgs, summary)
 
@@ -182,24 +195,9 @@ func runLaunch(cmd *cobra.Command, args []string) {
 
 	cliArgs = append(cliArgs, "--dangerously-skip-permissions")
 
-	// strip any inherited CLAUDE_CONFIG_DIR so it can't override the chosen account
-	env := os.Environ()
-	home, _ := os.UserHomeDir()
-	defaultDir := filepath.Join(home, ".claude")
-	filtered := make([]string, 0, len(env))
-	for _, e := range env {
-		if !strings.HasPrefix(e, "CLAUDE_CONFIG_DIR=") {
-			filtered = append(filtered, e)
-		}
-	}
-	env = filtered
-	if account != defaultDir {
-		env = append(env, "CLAUDE_CONFIG_DIR="+account)
-	}
-
 	u.PrintInfo("Launching: " + strings.Join(summary, " · "))
 
-	if err := syscall.Exec(claudePath, cliArgs, env); err != nil {
+	if err := syscall.Exec(claudePath, cliArgs, accounts.Env(account)); err != nil {
 		u.PrintFatal("Failed to exec claude", err)
 	}
 }

@@ -16,7 +16,7 @@ var cleanCwdCmd = &cobra.Command{
 func runCleanCwd(cmd *cobra.Command, args []string) {
 	root := currentDir()
 	if err := workspace.Clean(root); err != nil {
-		fatal("failed to remove the layout", err)
+		u.PrintFatal("failed to remove the layout", err)
 	}
 	u.PrintSuccess("Removed the claudex layout from " + u.AbbreviatePath(root))
 	u.PrintGeneric("  removed: .agents/, CLAUDE.md, .claude/skills, and the claudex sections of AGENTS.md")

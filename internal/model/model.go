@@ -18,7 +18,7 @@ type UsageWindow struct {
 
 type AccountUsage struct {
 	Account      AccountInfo   `json:"account"`
-	Windows      []UsageWindow `json:"windows,omitempty"`
+	Windows      []UsageWindow `json:"windows,omitzero"`
 	TokenExpired bool          `json:"tokenExpired,omitempty"`
 	APIError     string        `json:"apiError,omitempty"`
 }

@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
-	"os"
 	"time"
 
 	"charm.land/lipgloss/v2"
@@ -31,6 +31,7 @@ var (
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show current usage for all accounts",
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		accountPaths := u.ResolveAccountPaths(statusFlags.account)
 		var accounts []model.AccountUsage
@@ -48,9 +49,11 @@ var statusCmd = &cobra.Command{
 		}
 
 		if statusFlags.jsonOutput {
-			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
-			enc.Encode(map[string]any{"accounts": accounts})
+			data, err := json.Marshal(map[string]any{"accounts": accounts}, jsontext.WithIndent("  "))
+			if err != nil {
+				u.PrintFatal("encoding status output", err)
+			}
+			u.PrintGeneric(string(data))
 			return
 		}
 		renderStatus(accounts)
@@ -186,5 +189,5 @@ func renderBar(pct float64) string {
 
 func init() {
 	statusCmd.Flags().StringVarP(&statusFlags.account, "account", "A", "", "Use only this specific account directory (default: all discovered accounts)")
-	statusCmd.Flags().BoolVarP(&statusFlags.jsonOutput, "json", "j", false, "Output as JSON")
+	statusCmd.Flags().BoolVar(&statusFlags.jsonOutput, "json", false, "Output as JSON")
 }

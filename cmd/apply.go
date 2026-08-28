@@ -25,7 +25,7 @@ func runApply(cmd *cobra.Command, args []string) {
 
 	names, err := workspace.ApplyBase(root, embedded.AgentsBase, embedded.DefaultSkillsFS, "default-skills")
 	if err != nil {
-		fatal("failed to apply the layout", err)
+		u.PrintFatal("failed to apply the layout", err)
 	}
 
 	u.PrintSuccess("Applied to " + u.AbbreviatePath(root))
@@ -40,7 +40,7 @@ func runApply(cmd *cobra.Command, args []string) {
 func presetsDir() string {
 	dir := u.PresetsDir()
 	if err := workspace.EnsurePresets(embedded.PresetsFS, "presets", dir); err != nil {
-		fatal("failed to lay down the built-in presets", err)
+		u.PrintFatal("failed to lay down the built-in presets", err)
 	}
 	return dir
 }
@@ -53,7 +53,6 @@ func currentDir() string {
 	return cwd
 }
 
-// Every conflict is reported at once, because clearing them one refusal at a time is one run per path.
 func refuse(msg string, conflicts []workspace.Conflict) {
 	u.PrintError(msg+"; nothing was written", nil)
 	for _, c := range conflicts {
@@ -61,12 +60,4 @@ func refuse(msg string, conflicts []workspace.Conflict) {
 	}
 	u.PrintGeneric("  move each one aside, then run the command again")
 	os.Exit(1)
-}
-
-// The printers only surface the error argument under --debug, and these are the failures the user has to act on.
-func fatal(msg string, err error) {
-	if err != nil {
-		msg += ": " + err.Error()
-	}
-	u.PrintFatal(msg, err)
 }

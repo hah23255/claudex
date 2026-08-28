@@ -5,13 +5,11 @@ import (
 	"path/filepath"
 )
 
-// A path the layout needs that already holds something claudex did not put there.
 type Conflict struct {
 	Path string
 	Why  string
 }
 
-// Everything ApplyBase writes, checked before it writes any of it, so a directory that cannot take the whole layout keeps the state it had instead of a partial one.
 func PreflightBase(root string) []Conflict {
 	c := check{root: root}
 	c.dir(AgentsDir)
@@ -23,7 +21,6 @@ func PreflightBase(root string) []Conflict {
 	return c.found
 }
 
-// The same check for the skills LinkSkills would put in place.
 func PreflightPresetSkills(root string, names []string) []Conflict {
 	c := check{root: root}
 	c.dir(AgentsDir)
@@ -34,7 +31,6 @@ func PreflightPresetSkills(root string, names []string) []Conflict {
 	return c.found
 }
 
-// The same check for the one file every AGENTS.md section is written to.
 func PreflightAgentsFile(root string) []Conflict {
 	c := check{root: root}
 	c.file(AgentsFile)
@@ -78,9 +74,9 @@ func (c *check) link(rel, target string) {
 	}
 }
 
-// A symlink under .agents/skills is claudex's own and gets repointed; anything else there was put in by hand.
 func (c *check) ownedLink(rel string) {
 	path := filepath.Join(c.root, rel)
+	// A symlink here is claudex's own and gets repointed; anything else was put in by hand.
 	if _, err := os.Readlink(path); err == nil {
 		return
 	}
