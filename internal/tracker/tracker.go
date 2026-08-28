@@ -3,13 +3,14 @@ package tracker
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/tanq16/claudex/internal/model"
@@ -80,7 +81,6 @@ func ComputeAccountUsage(configDir string) (model.AccountUsage, error) {
 	return usage, nil
 }
 
-// The "limits" array is the authoritative per-model weekly source; fall back to the legacy fixed windows when it's absent.
 func buildWindows(resp *apiResponse) []model.UsageWindow {
 	if len(resp.Limits) > 0 {
 		windows := make([]model.UsageWindow, 0, len(resp.Limits))
@@ -119,7 +119,6 @@ func parseTime(s string) time.Time {
 	return t
 }
 
-// claudeCredentials matches the OAuth blob Claude Code stores. The macOS Keychain value and the Linux/Windows .credentials.json file share this shape.
 type claudeCredentials struct {
 	ClaudeAiOauth struct {
 		AccessToken string `json:"accessToken"`
@@ -127,11 +126,18 @@ type claudeCredentials struct {
 }
 
 func getOAuthToken(configDir string) (string, error) {
+	// The macOS Keychain value and the Linux/Windows .credentials.json file hold the same blob.
 	var raw []byte
 	if runtime.GOOS == "darwin" {
-		out, err := exec.Command("security", "find-generic-password", "-s", keychainServiceName(configDir), "-w").Output()
+		cmd := exec.Command("security", "find-generic-password", "-s", keychainServiceName(configDir), "-w")
+		var stderr strings.Builder
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
 		if err != nil {
-			return "", err
+			if detail := strings.TrimSpace(stderr.String()); detail != "" {
+				return "", fmt.Errorf("reading the keychain: %s: %w", detail, err)
+			}
+			return "", fmt.Errorf("reading the keychain: %w", err)
 		}
 		raw = bytes.TrimSpace(out)
 	} else {
@@ -187,7 +193,7 @@ func fetchUsage(token string) (*apiResponse, error) {
 	}
 
 	var result apiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &result); err != nil {
 		return nil, err
 	}
 

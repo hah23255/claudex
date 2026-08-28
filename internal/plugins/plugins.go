@@ -1,12 +1,20 @@
 package plugins
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"io/fs"
 	"os"
 	"path/filepath"
+
+	"github.com/tanq16/claudex/internal/fsutil"
 )
 
-// Everything here loads into every session, which is why it carries language servers and nothing else; skills reach a project through `claudex apply`.
+const (
+	dirMode  = 0o700
+	fileMode = 0o600
+)
+
 func BuildGlobalPlugin(dir string) error {
 	if err := writeGlobalManifest(dir); err != nil {
 		return err
@@ -14,30 +22,30 @@ func BuildGlobalPlugin(dir string) error {
 	return writeGlobalLSP(dir)
 }
 
-// Always rewritten (not write-if-missing) so a manifest from an older plugin name migrates to "claudex".
 func writeGlobalManifest(dir string) error {
+	// Rewritten rather than written-if-missing so a manifest from an older plugin name migrates to "claudex".
 	manifest := filepath.Join(dir, ".claude-plugin", "plugin.json")
-	if err := os.MkdirAll(filepath.Dir(manifest), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(manifest), dirMode); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(map[string]any{
+	data, err := json.Marshal(map[string]any{
 		"name":        "claudex",
 		"description": "claudex's language servers, auto-loaded across every account",
 		"version":     "0.0.1",
-	}, "", "  ")
+	}, jsontext.WithIndent("  "))
 	if err != nil {
 		return err
 	}
 	data = append(data, '\n')
-	return writeFileAtomic(manifest, data, 0o644)
+	return fsutil.WriteFileAtomic(manifest, data, fileMode)
 }
 
-// Rewritten every build so an added server or schema change reaches existing installs. A server whose binary is absent is skipped by Claude Code, so shipping all three by default is safe.
 func writeGlobalLSP(dir string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, dirMode); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(map[string]any{
+	// Claude Code skips a server whose binary is absent, so all three ship unconditionally.
+	data, err := json.Marshal(map[string]any{
 		"go": map[string]any{
 			"command":             "gopls",
 			"args":                []string{"serve"},
@@ -58,22 +66,24 @@ func writeGlobalLSP(dir string) error {
 				".jsx": "javascriptreact",
 			},
 		},
-	}, "", "  ")
+	}, jsontext.WithIndent("  "))
 	if err != nil {
 		return err
 	}
 	data = append(data, '\n')
-	return writeFileAtomic(filepath.Join(dir, ".lsp.json"), data, 0o644)
+	return fsutil.WriteFileAtomic(filepath.Join(dir, ".lsp.json"), data, fileMode)
 }
 
-func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, mode); err != nil {
-		return err
+func PruneGlobal(dir string, legacySkills fs.FS, skillsRoot string) {
+	os.Remove(filepath.Join(dir, "output-styles", "claudex.md"))
+	os.Remove(filepath.Join(dir, "output-styles"))
+
+	entries, err := fs.ReadDir(legacySkills, skillsRoot)
+	if err != nil {
+		return
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
-		return err
+	for _, e := range entries {
+		os.RemoveAll(filepath.Join(dir, "skills", e.Name()))
 	}
-	return nil
+	os.Remove(filepath.Join(dir, "skills"))
 }

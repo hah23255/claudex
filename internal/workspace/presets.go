@@ -17,6 +17,16 @@ const (
 	skillFile    = "SKILL.md"
 )
 
+type fileModes struct {
+	dir  os.FileMode
+	file os.FileMode
+}
+
+var (
+	configModes  = fileModes{dir: 0o700, file: 0o600}
+	projectModes = fileModes{dir: 0o755, file: 0o644}
+)
+
 type Preset struct {
 	Name        string
 	Description string
@@ -35,14 +45,14 @@ func EnsurePresets(srcFS fs.FS, root, dir string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, configModes.dir); err != nil {
 		return err
 	}
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
-		if err := installTree(srcFS, root+"/"+e.Name(), filepath.Join(dir, e.Name())); err != nil {
+		if err := installTree(srcFS, root+"/"+e.Name(), filepath.Join(dir, e.Name()), configModes); err != nil {
 			return err
 		}
 	}
@@ -123,7 +133,7 @@ func ScaffoldPreset(dir, name string) (string, error) {
 	if _, err := os.Stat(target); err == nil {
 		return "", fmt.Errorf("%s already exists", target)
 	}
-	if err := os.MkdirAll(filepath.Join(target, SkillsDir), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(target, SkillsDir), configModes.dir); err != nil {
 		return "", err
 	}
 	files := map[string]string{
@@ -131,14 +141,13 @@ func ScaffoldPreset(dir, name string) (string, error) {
 		PartialName:  fmt.Sprintf("## %s\n\nRules this preset adds to AGENTS.md. Keep it short and give every rule a reason.\n", name),
 	}
 	for base, body := range files {
-		if err := os.WriteFile(filepath.Join(target, base), []byte(body), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(target, base), []byte(body), configModes.file); err != nil {
 			return "", err
 		}
 	}
 	return target, nil
 }
 
-// Keeps a preset name a safe path component.
 func validName(name string) bool {
 	if name == "" || len(name) > 64 {
 		return false
@@ -174,7 +183,7 @@ func installSkills(srcFS fs.FS, root, dest string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(dest, 0o755); err != nil {
+	if err := os.MkdirAll(dest, projectModes.dir); err != nil {
 		return nil, err
 	}
 	var names []string
@@ -182,7 +191,7 @@ func installSkills(srcFS fs.FS, root, dest string) ([]string, error) {
 		if !e.IsDir() {
 			continue
 		}
-		if err := installTree(srcFS, root+"/"+e.Name(), filepath.Join(dest, e.Name())); err != nil {
+		if err := installTree(srcFS, root+"/"+e.Name(), filepath.Join(dest, e.Name()), projectModes); err != nil {
 			return nil, err
 		}
 		names = append(names, e.Name())
@@ -191,16 +200,16 @@ func installSkills(srcFS fs.FS, root, dest string) ([]string, error) {
 	return names, nil
 }
 
-// Staged beside dest and swapped in with a rename so an interrupted install never leaves half a skill in place.
-func installTree(srcFS fs.FS, root, dest string) error {
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+func installTree(srcFS fs.FS, root, dest string, m fileModes) error {
+	if err := os.MkdirAll(filepath.Dir(dest), m.dir); err != nil {
 		return err
 	}
+	// Staged and swapped in with a rename so an interrupted install never leaves half a skill in place.
 	staging := dest + ".staging"
 	if err := os.RemoveAll(staging); err != nil {
 		return err
 	}
-	if err := copyTree(srcFS, root, staging); err != nil {
+	if err := copyTree(srcFS, root, staging, m); err != nil {
 		os.RemoveAll(staging)
 		return err
 	}
@@ -215,19 +224,19 @@ func installTree(srcFS fs.FS, root, dest string) error {
 	return nil
 }
 
-func copyTree(srcFS fs.FS, root, dest string) error {
+func copyTree(srcFS fs.FS, root, dest string, m fileModes) error {
 	return fs.WalkDir(srcFS, root, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil || d.IsDir() {
 			return walkErr
 		}
 		out := filepath.Join(dest, strings.TrimPrefix(path, root+"/"))
-		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(out), m.dir); err != nil {
 			return err
 		}
 		data, err := fs.ReadFile(srcFS, path)
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(out, data, 0o644)
+		return os.WriteFile(out, data, m.file)
 	})
 }

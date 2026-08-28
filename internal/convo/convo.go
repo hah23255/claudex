@@ -2,7 +2,7 @@ package convo
 
 import (
 	"bufio"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -14,14 +14,13 @@ import (
 	"github.com/tanq16/claudex/internal/model"
 )
 
-// RawHistoryEntry preserves the original JSONL line for lossless write-back.
 type RawHistoryEntry struct {
 	Parsed model.HistoryEntry
 	Raw    []byte
 }
 
-// Claude's on-disk project dir: every "/" in the abs path becomes "-" (e.g. /Users/foo -> -Users-foo).
 func EncodeProjectPath(absPath string) string {
+	// Claude names its on-disk project dir by replacing every "/" in the abs path with "-".
 	return strings.ReplaceAll(absPath, "/", "-")
 }
 
@@ -58,7 +57,6 @@ func ReadRawHistory(configDir string) ([]RawHistoryEntry, error) {
 	return entries, scanner.Err()
 }
 
-// WriteRawHistory atomically overwrites history.jsonl.
 func WriteRawHistory(configDir string, entries []RawHistoryEntry) error {
 	path := filepath.Join(configDir, "history.jsonl")
 	tmp := path + ".tmp"
@@ -144,14 +142,13 @@ func MoveSession(sessionID, srcProjectDir, dstProjectDir string) error {
 	return nil
 }
 
-// moveFileOrDir tries os.Rename first, falls back to copy+remove for cross-filesystem.
 func moveFileOrDir(src, dst string) error {
 	err := os.Rename(src, dst)
 	if err == nil {
 		return nil
 	}
 
-	if linkErr, ok := err.(*os.LinkError); ok && errors.Is(linkErr.Err, syscall.EXDEV) {
+	if linkErr, ok := errors.AsType[*os.LinkError](err); ok && errors.Is(linkErr.Err, syscall.EXDEV) {
 		return copyAndRemove(src, dst)
 	}
 	return err

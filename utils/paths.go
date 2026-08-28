@@ -78,16 +78,15 @@ func AbbreviatePath(path string) string {
 	return path
 }
 
-// Hardcoded (not XDG_CONFIG_HOME) so the path is identical on Linux and macOS.
 func ClaudexConfigDir() string {
 	home, _ := os.UserHomeDir()
+	// Hardcoded rather than XDG_CONFIG_HOME so the path is identical on Linux and macOS.
 	return filepath.Join(home, ".config", "claudex")
 }
 
 func GlobalPluginDir() string {
 	return filepath.Join(ClaudexConfigDir(), "global")
 }
-
 
 func PresetsDir() string {
 	return filepath.Join(ClaudexConfigDir(), "presets")
